@@ -17,10 +17,10 @@ Requires [uv](https://docs.astral.sh/uv/).
 After the public v0.1.0 release, run it directly from GitHub:
 
 ```bash
-uvx --from "git+https://github.com/<OWNER>/channel-brains@v0.1.0" channel-brains-mcp
+uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.0" channel-brains-mcp
 ```
 
-Replace `<OWNER>` with the GitHub account that owns the published repository. The exact release URL will replace this placeholder when publishing is complete.
+The release is published from [`Pu11en/channel-brains`](https://github.com/Pu11en/channel-brains).
 
 For development:
 
@@ -64,14 +64,14 @@ By default, Channel Brains stores its SQLite database and lock file in the platf
 Set `CHANNEL_BRAINS_HOME` before launching the MCP server to use another location:
 
 ```bash
-CHANNEL_BRAINS_HOME=/path/to/channel-brains-data uvx --from "git+https://github.com/<OWNER>/channel-brains@v0.1.0" channel-brains-mcp
+CHANNEL_BRAINS_HOME=/path/to/channel-brains-data uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.0" channel-brains-mcp
 ```
 
 Captions and search indexes stay on the local machine. The only network requests are public YouTube requests made by `yt-dlp` and caption URL retrieval during ingestion.
 
 ## MCP client configuration
 
-All examples use the release command. Substitute your real GitHub owner for `<OWNER>`.
+All examples use the published `Pu11en/channel-brains` release command.
 
 ### Hermes Agent
 
@@ -83,7 +83,7 @@ mcp_servers:
     command: uvx
     args:
       - --from
-      - git+https://github.com/<OWNER>/channel-brains@v0.1.0
+      - git+https://github.com/Pu11en/channel-brains@v0.1.0
       - channel-brains-mcp
     timeout: 120
     connect_timeout: 60
@@ -97,7 +97,7 @@ Register it at user scope:
 
 ```bash
 claude mcp add -s user channel-brains -- \
-  uvx --from "git+https://github.com/<OWNER>/channel-brains@v0.1.0" channel-brains-mcp
+  uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.0" channel-brains-mcp
 ```
 
 Confirm it is available:
@@ -113,7 +113,7 @@ Add this to `~/.codex/config.toml`:
 ```toml
 [mcp_servers.channel-brains]
 command = "uvx"
-args = ["--from", "git+https://github.com/<OWNER>/channel-brains@v0.1.0", "channel-brains-mcp"]
+args = ["--from", "git+https://github.com/Pu11en/channel-brains@v0.1.0", "channel-brains-mcp"]
 ```
 
 Restart Codex after saving the file.
@@ -131,7 +131,7 @@ Add a local MCP server entry to your OpenCode configuration:
       "command": [
         "uvx",
         "--from",
-        "git+https://github.com/<OWNER>/channel-brains@v0.1.0",
+        "git+https://github.com/Pu11en/channel-brains@v0.1.0",
         "channel-brains-mcp"
       ],
       "enabled": true
