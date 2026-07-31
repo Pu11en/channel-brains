@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "channel-brains-mcp"
+version = "0.1.0"
+description = "Local MCP server for searchable, timestamped YouTube channel captions"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+  "filelock>=3.20,<4",
+  "mcp>=2.0,<3",
+  "platformdirs>=4.4,<5",
+  "pydantic>=2.12,<3",
+  "webvtt-py>=0.5,<1",
+  "yt-dlp[default,deno]>=2026.7.4,<2027",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=9,<10",
+  "pytest-asyncio>=1,<2",
+  "ruff>=0.12,<1",
+]
+
+[project.scripts]
+channel-brains-mcp = "channel_brains_mcp.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/channel_brains_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+asyncio_mode = "auto"
+markers = [
+  "live: requires live YouTube network access",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["E501"]
