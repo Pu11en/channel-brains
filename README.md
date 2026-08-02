@@ -47,9 +47,19 @@ installed globally.
 
 ### ZCode
 
-Open **Settings → Plugins → Create → Add marketplace**, enter
-`https://github.com/Pu11en/channel-brains`, then install **Channel Brains**. ZCode
-refreshes the affected session automatically when the plugin is enabled.
+The AI installs the bundled plugin itself by running this from its repository
+clone:
+
+```bash
+uv run --no-project python scripts/install_zcode_plugin.py
+```
+
+The installer copies Channel Brains to ZCode's stable user plugin directory and
+safely adds that directory to `~/.zcode/cli/config.json`. It preserves unrelated
+plugins, MCP servers, and settings. No marketplace clicking or application
+restart is required; the user's channel URL can be the next message in the same
+task. On ZCode versions that freeze a task's tool inventory, one new task is the
+only activation step.
 
 ### Claude Code
 

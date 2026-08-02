@@ -57,19 +57,35 @@ Continue only when it exits successfully with `"status":"ok"`,
 
 ## ZCode plugin
 
-Use the plugin path because ZCode automatically refreshes affected sessions when
-a plugin is enabled.
+Use ZCode's agent-supported inline plugin directory. This is the primary ZCode
+flow: do not stop and ask the user to operate Settings when local file and shell
+tools are available.
 
-1. Open **Settings → Plugins**.
-2. Choose **Create → Add marketplace** and enter:
-   `https://github.com/Pu11en/channel-brains`
-3. Find **Channel Brains** in the new personal marketplace and select **Install**.
-4. Confirm the plugin is enabled. Its MCP appears under **Settings → MCP** in
-   the Plugin MCP servers group.
-5. Confirm all six tools are connected in the current task.
+1. Keep the cloned repository available until installation finishes.
+2. From the repository root, run:
 
-If you cannot control ZCode settings from the agent runtime, ask the user for
-only this one UI action. Do not fall back to undocumented plugin-cache edits.
+   ```text
+   uv run --no-project python scripts/install_zcode_plugin.py
+   ```
+
+3. Read `~/.zcode/cli/config.json` and validate it as JSON. Confirm that
+   `plugins.enabled` is `true` and that `plugins.dirs` contains the absolute
+   `~/.zcode/plugins/channel-brains` path. Preserve every unrelated plugin,
+   MCP server, and setting.
+4. Do not edit ZCode marketplace or plugin-cache internals. The installer copies
+   only the bundled plugin into the stable user plugin directory and atomically
+   merges that supported directory into the user config.
+5. Continue in the current task. The current model request cannot gain tools
+   halfway through a turn, so ask which YouTube channel the user wants to index.
+   Their channel-URL reply is the next turn in this same task, when ZCode can
+   refresh the plugin-provided MCP tools.
+6. On that next turn, require all six tools before calling `create_brain`. If the
+   current ZCode version keeps the task's tool inventory frozen, report
+   **Reload pending** and ask for one new task. Never ask for an application
+   restart or a Settings walkthrough.
+
+The marketplace UI remains an optional human-managed alternative, not an agent
+installation dependency.
 
 ## Claude Code plugin
 
