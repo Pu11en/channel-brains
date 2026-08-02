@@ -1,0 +1,15 @@
+{
+  "name": "channel-brains",
+  "owner": {
+    "name": "Pu11en"
+  },
+  "description": "Install Channel Brains for local, timestamped YouTube caption search.",
+  "plugins": [
+    {
+      "name": "channel-brains",
+      "source": "./plugins/channel-brains",
+      "description": "Index and search public YouTube channel captions with timestamp citations.",
+      "version": "0.1.1"
+    }
+  ]
+}
