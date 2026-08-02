@@ -6,7 +6,7 @@ from pathlib import Path
 import platformdirs
 
 APP_NAME = "channel-brains-mcp"
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 MAX_VIDEOS = 50
 DEFAULT_LANGUAGE = "en"
 TARGET_CHUNK_SECONDS = 45

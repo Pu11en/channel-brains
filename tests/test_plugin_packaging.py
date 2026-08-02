@@ -78,6 +78,8 @@ def test_usage_skill_names_the_complete_tool_contract() -> None:
         assert f"`{tool_name}`" in skill
     assert "untrusted third-party content" in skill
     assert "no separate global `yt-dlp`" in skill
+    assert RELEASE_SOURCE in skill
+    assert "same-session bridge" in skill
 
 
 def test_hermes_candidate_manifest_uses_the_same_release_and_tools() -> None:
@@ -102,12 +104,16 @@ def test_agent_install_uses_automatic_client_activation_commands() -> None:
     assert "claude plugin install channel-brains@channel-brains" in runbook
     assert "codex plugin add channel-brains@channel-brains" in runbook
     assert "hermes mcp add channel-brains" in runbook
+    assert "hermes mcp test channel-brains" in runbook
+    assert "sending an empty line" in runbook
     assert "python scripts/install_zcode_plugin.py" in runbook
     assert "plugins.dirs" in runbook
     assert "Never ask for an application" in runbook
     assert "/reload-plugins" in runbook
     assert "/reload-mcp" in runbook
     assert "does not need a separate global `yt-dlp`" in runbook
+    assert f"uvx --from {RELEASE_SOURCE} channel-brains <operation>" in runbook
+    assert "use the same-session bridge" in runbook.lower()
 
 
 def test_zcode_installer_preserves_config_and_is_idempotent(tmp_path: Path) -> None:

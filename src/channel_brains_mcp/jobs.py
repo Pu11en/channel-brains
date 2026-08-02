@@ -78,10 +78,18 @@ class JobQueue:
 class JobManager:
     """Lazy daemon worker that holds a cross-process lock during all network work."""
 
-    def __init__(self, repo: Repository, youtube: YoutubeClientLike, lock_path: str) -> None:
+    def __init__(
+        self,
+        repo: Repository,
+        youtube: YoutubeClientLike,
+        lock_path: str,
+        *,
+        auto_start: bool = True,
+    ) -> None:
         self._repo = repo
         self._youtube = youtube
         self._lock_path = lock_path
+        self._auto_start = auto_start
         self._queue = JobQueue()
         self._worker: threading.Thread | None = None
         self._state_lock = threading.Lock()
@@ -96,9 +104,13 @@ class JobManager:
     def enqueue(self, brain_id: str) -> bool:
         """Queue exactly once and lazily start one daemon worker on demand."""
         queued = self._queue.put(brain_id)
-        if queued:
+        if queued and self._auto_start:
             self.start_worker()
         return queued
+
+    def run_now(self, brain_id: str) -> None:
+        """Process one brain synchronously while holding the cross-process lock."""
+        self._process_with_lock(brain_id)
 
     def start_worker(self) -> None:
         """Start a worker only if one is not already live."""

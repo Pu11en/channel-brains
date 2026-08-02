@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "channel-brains-mcp"
-version = "0.1.1"
+version = "0.1.2"
 description = "Local MCP server for searchable, timestamped YouTube channel captions"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -28,6 +28,7 @@ dev = [
 
 [project.scripts]
 channel-brains-mcp = "channel_brains_mcp.server:main"
+channel-brains = "channel_brains_mcp.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/channel_brains_mcp"]

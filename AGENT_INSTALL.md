@@ -16,8 +16,7 @@ wrapper that bundles its MCP registration and usage skill.
 
 ## Required outcome
 
-Installation is complete only when the current client has discovered these six
-tools:
+The native plugin exposes these six tools:
 
 - `create_brain`
 - `get_brain_status`
@@ -27,6 +26,12 @@ tools:
 - `delete_brain`
 
 Hermes prefixes them with `mcp_channel_brains_`.
+
+Some clients freeze their MCP tool inventory for the lifetime of the current
+task. That must not stop the installation conversation. Install the native
+plugin for future tasks, then use the same-session command bridge below until
+the client refreshes. The bridge has the same six operation names and returns
+the same structured JSON as the MCP tools.
 
 Do not call `create_brain` during installation. It makes live YouTube requests
 and requires an explicit channel URL and indexing request from the user.
@@ -49,11 +54,40 @@ use the absolute `uvx` path in a manual MCP definition.
 Before registering anything, run the offline release check:
 
 ```text
-uvx --from git+https://github.com/Pu11en/channel-brains@v0.1.1 channel-brains-mcp --check
+uvx --from git+https://github.com/Pu11en/channel-brains@v0.1.2 channel-brains-mcp --check
 ```
 
 Continue only when it exits successfully with `"status":"ok"`,
 `"transport":"stdio"`, and `"tool_count":6`.
+
+## Same-session command bridge
+
+Prefer the native MCP tools whenever they are present. When installation has
+succeeded but the current task cannot see newly added tools, run Channel Brains
+through the shell instead of asking the user to restart, reload, open Settings,
+or create a new task:
+
+```text
+uvx --from git+https://github.com/Pu11en/channel-brains@v0.1.2 channel-brains <operation> [arguments]
+```
+
+The six bridge operations are:
+
+```text
+channel-brains create_brain --channel-url URL [--max-videos 50] [--language en]
+channel-brains get_brain_status [--brain-id ID]
+channel-brains list_brain_videos --brain-id ID [--offset 0] [--limit 20]
+channel-brains search_brain --query TEXT [--brain-id ID] [--limit 8]
+channel-brains get_video_transcript --brain-id ID --video-id ID [--offset 0] [--limit 50]
+channel-brains delete_brain --brain-id ID --confirm
+```
+
+Substitute the full pinned `uvx --from ... channel-brains` prefix for
+`channel-brains` in those examples. `create_brain` starts a detached local
+worker, so ingestion continues after the bridge command exits. Apply the same
+consent, polling, citation, untrusted-caption, and deletion rules as the MCP
+tools. Never use the bridge merely because a channel URL appears; the user must
+explicitly ask to index it.
 
 ## ZCode plugin
 
@@ -79,10 +113,10 @@ tools are available.
    halfway through a turn, so ask which YouTube channel the user wants to index.
    Their channel-URL reply is the next turn in this same task, when ZCode can
    refresh the plugin-provided MCP tools.
-6. On that next turn, require all six tools before calling `create_brain`. If the
-   current ZCode version keeps the task's tool inventory frozen, report
-   **Reload pending** and ask for one new task. Never ask for an application
-   restart or a Settings walkthrough.
+6. On that next turn, use the native tools if all six are present. If the current
+   ZCode version keeps the task's tool inventory frozen, use the same-session
+   bridge. Never ask for an application restart, a new task, or a Settings
+   walkthrough just to continue the Channel Brains workflow.
 
 The marketplace UI remains an optional human-managed alternative, not an agent
 installation dependency.
@@ -96,9 +130,11 @@ claude plugin marketplace add Pu11en/channel-brains
 claude plugin install channel-brains@channel-brains --scope user
 ```
 
-Apply the new plugin in the active Claude Code session with `/reload-plugins`,
-then inspect `/mcp` and require all six tools. If the current agent cannot issue
-a slash command programmatically, ask the user to enter only `/reload-plugins`.
+Confirm the plugin is installed and enabled with `claude plugin list`. If the
+active Claude Code runtime permits the agent to invoke `/reload-plugins`, do so
+and inspect `/mcp` for all six tools. Otherwise, do not make the user type a
+slash command: use the same-session bridge and continue in the current task.
+The native plugin will load automatically in future Claude Code sessions.
 
 ## Codex plugin
 
@@ -110,9 +146,11 @@ codex plugin add channel-brains@channel-brains
 codex plugin list
 ```
 
-Codex loads newly installed plugin skills and MCP tools in a new task/session.
-Do not ask the user to restart the whole application; ask for one new task, then
-verify all six tools there.
+Codex freezes a task's tool inventory. Confirm `codex plugin list` reports the
+plugin installed and enabled, then use the same-session bridge in the current
+task. Do not ask the user to restart the application or open a new task merely
+to continue. The native plugin and all six MCP tools load automatically in
+future Codex tasks.
 
 ## Hermes Agent
 
@@ -120,12 +158,17 @@ Until Channel Brains is merged into the Nous-reviewed Hermes MCP catalog, use
 Hermes's native MCP registration command:
 
 ```text
-hermes mcp add channel-brains --command uvx --connect-timeout 60 --args --from git+https://github.com/Pu11en/channel-brains@v0.1.1 channel-brains-mcp
+hermes mcp add channel-brains --command uvx --connect-timeout 60 --args --from git+https://github.com/Pu11en/channel-brains@v0.1.2 channel-brains-mcp
 ```
 
-Run `/reload-mcp` in the active Hermes session and require the six tools with
-the `mcp_channel_brains_` prefix. A candidate upstream catalog manifest is kept
-in `integrations/hermes/manifest.yaml`; once accepted upstream, prefer:
+Hermes asks whether to enable all discovered tools. The agent must accept the
+default **Yes** itself by sending an empty line to the controlled terminal; do
+not hand this prompt to the user. Then run `hermes mcp test channel-brains` and
+require `Tools discovered: 6`. If the agent can invoke `/reload-mcp`, do so and
+require the six tools with the `mcp_channel_brains_` prefix. Otherwise use the
+same-session bridge rather than asking the user to reload. A candidate upstream
+catalog manifest is kept in `integrations/hermes/manifest.yaml`; once accepted
+upstream, prefer:
 
 ```text
 hermes mcp install channel-brains
@@ -137,8 +180,9 @@ If the current client is not listed above but supports local stdio MCP servers,
 use the generic definition in `plugins/channel-brains/.mcp.json` or translate its
 `uvx` command and arguments into the client's documented user-scoped format.
 Prefer a supported plugin or marketplace mechanism when one exists. Activate or
-reload the client tool registry when supported, then require the same six tools.
-Ask the user for a new task only when the client exposes no live reload mechanism.
+reload the client tool registry when the agent can do so, then require the same
+six tools. If the current task's inventory is frozen, use the same-session
+bridge rather than transferring technical activation work to the user.
 
 If the environment is a web-only chat with no access to the user's computer, say
 clearly that it cannot install local software. Do not pretend configuration was
@@ -150,10 +194,14 @@ Use these states accurately:
 
 - **Preflight passed**: the offline `--check` succeeded.
 - **Plugin installed**: the client saved and enabled the plugin.
+- **Bridge ready**: the native plugin is installed and the current task can use
+  all six operations through the shell bridge while its tool inventory is frozen.
 - **Connected and ready**: the client connected to the MCP server and discovered
   all six tools.
 - **Reload pending**: registration succeeded but the client has not refreshed
   its tool inventory yet.
 
 Only say “Channel Brains is installed and ready” for the connected-and-ready
-state. Then ask which YouTube channel the user wants to index.
+state. For bridge-ready state, say “Channel Brains is installed and usable in
+this task through its same-session bridge.” Then ask which YouTube channel the
+user wants to index.
