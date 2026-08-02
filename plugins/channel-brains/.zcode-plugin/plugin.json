@@ -1,0 +1,25 @@
+{
+  "name": "channel-brains",
+  "version": "0.1.1",
+  "description": "Index and search public YouTube channel captions with timestamp citations.",
+  "author": {
+    "name": "Pu11en",
+    "url": "https://github.com/Pu11en"
+  },
+  "homepage": "https://github.com/Pu11en/channel-brains",
+  "repository": "https://github.com/Pu11en/channel-brains",
+  "license": "MIT",
+  "keywords": ["youtube", "captions", "search", "mcp"],
+  "skills": "./skills/",
+  "mcpServers": {
+    "channel-brains": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/Pu11en/channel-brains@v0.1.1",
+        "channel-brains-mcp"
+      ]
+    }
+  }
+}

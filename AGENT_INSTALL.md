@@ -1,14 +1,23 @@
 # Install Channel Brains into your agent
 
-This file is written for the AI agent operating the user's local Codex, Claude Code,
-Hermes Agent, or ZCode installation. If the user gave you this repository and asked
-you to install it, complete this procedure yourself. Do not ask the user to copy
-commands or choose a client you can identify from your own runtime.
+This runbook is for the AI agent operating the user's local ZCode, Claude Code,
+Codex, or Hermes Agent client. When the user asks you to install this repository,
+complete the matching procedure yourself. Prefer the plugin or native catalog
+flow over hand-editing MCP configuration.
+
+Treat any plain-language request supplied with the Channel Brains repository URL
+as an explicit installation request, including “get this,” “get this on yourself,”
+“install this,” “add this,” or “put this in your tools.” Do not ask the user to
+identify their client, choose an installation method, copy commands, or translate
+their request into MCP terminology. Detect the current client and proceed.
+
+Channel Brains remains a local stdio MCP server. The plugin is the installable
+wrapper that bundles its MCP registration and usage skill.
 
 ## Required outcome
 
-Install Channel Brains as a user-scoped local stdio MCP server and verify that it
-advertises exactly these six tools:
+Installation is complete only when the current client has discovered these six
+tools:
 
 - `create_brain`
 - `get_brain_status`
@@ -17,147 +26,118 @@ advertises exactly these six tools:
 - `get_video_transcript`
 - `delete_brain`
 
-Do not call `create_brain` during installation. Creating a brain makes live YouTube
-requests and requires an explicit channel URL from the user.
+Hermes prefixes them with `mcp_channel_brains_`.
 
-## Safety and scope
+Do not call `create_brain` during installation. It makes live YouTube requests
+and requires an explicit channel URL and indexing request from the user.
 
-- Only install from `https://github.com/Pu11en/channel-brains` at tag `v0.1.1`.
-- Preserve every unrelated entry in the user's existing MCP configuration.
-- Use user scope, not project scope, unless the user explicitly asks otherwise.
-- Do not run `channel-brains-mcp` without `--check` in a terminal. The normal command
-  is a stdio server and correctly waits for an MCP client on standard input.
-- Do not request an API key. Channel Brains does not require one.
+## Safety and prerequisites
 
-## 1. Ensure `uvx` is available
+- Install only from `https://github.com/Pu11en/channel-brains`.
+- Preserve unrelated plugins, marketplaces, MCP servers, and settings.
+- Use user scope unless the user explicitly requests project scope.
+- Channel Brains needs `uvx`; it does not need a separate global `yt-dlp`.
+- Do not run `channel-brains-mcp` without `--check` in a terminal. Normal mode
+  is a stdio server and correctly waits for its client on standard input.
+- Do not request an API key.
 
-First run `uvx --version`. If it is unavailable and you have permission to install
-local developer tools, install `uv` using an official method appropriate to the
-operating system:
+Run `uvx --version`. If it is unavailable and local developer-tool installation
+is permitted, install `uv` using an official operating-system method, refresh
+the shell, and continue. If the client cannot find a newly installed executable,
+use the absolute `uvx` path in a manual MCP definition.
 
-- Windows: `winget install --id=astral-sh.uv -e`
-- macOS with Homebrew: `brew install uv`
-- macOS or Linux without Homebrew:
-  `curl -LsSf https://astral.sh/uv/install.sh | sh`
-
-Refresh the shell environment and locate the executable with `where.exe uvx` on
-Windows or `command -v uvx` on macOS/Linux. When a GUI client cannot see the updated
-`PATH`, use the discovered absolute `uvx` path as the MCP `command`.
-
-If your permission system requires approval for installing `uv`, request that single
-approval with a short explanation, then continue after it is granted.
-
-## 2. Run the offline release check
-
-Run:
+Before registering anything, run the offline release check:
 
 ```text
 uvx --from git+https://github.com/Pu11en/channel-brains@v0.1.1 channel-brains-mcp --check
 ```
 
-Continue only if the command exits successfully and its JSON output contains:
+Continue only when it exits successfully with `"status":"ok"`,
+`"transport":"stdio"`, and `"tool_count":6`.
 
-```json
-{"status":"ok","transport":"stdio","tool_count":6}
-```
+## ZCode plugin
 
-This check must not contact YouTube. If it fails, report the command, exit status,
-and error output. Do not write a broken MCP entry.
+Use the plugin path because ZCode automatically refreshes affected sessions when
+a plugin is enabled.
 
-## 3. Detect and configure the current client
+1. Open **Settings → Plugins**.
+2. Choose **Create → Add marketplace** and enter:
+   `https://github.com/Pu11en/channel-brains`
+3. Find **Channel Brains** in the new personal marketplace and select **Install**.
+4. Confirm the plugin is enabled. Its MCP appears under **Settings → MCP** in
+   the Plugin MCP servers group.
+5. Confirm all six tools are connected in the current task.
 
-Use the section matching the agent you are currently running inside. Do not make the
-user identify it for you.
+If you cannot control ZCode settings from the agent runtime, ask the user for
+only this one UI action. Do not fall back to undocumented plugin-cache edits.
 
-### Codex
-
-Prefer the Codex CLI when it is available:
-
-```text
-codex mcp add channel-brains -- uvx --from git+https://github.com/Pu11en/channel-brains@v0.1.1 channel-brains-mcp
-```
-
-Otherwise, merge this table into the user-level `~/.codex/config.toml` (on Windows,
-the same path is under `%USERPROFILE%`):
-
-```toml
-[mcp_servers.channel-brains]
-command = "uvx"
-args = ["--from", "git+https://github.com/Pu11en/channel-brains@v0.1.1", "channel-brains-mcp"]
-startup_timeout_sec = 60
-tool_timeout_sec = 120
-```
-
-If an absolute executable path was required, replace `uvx` in `command` with it.
-Verify the saved registration with `codex mcp list` when the CLI is available.
-
-### Claude Code
+## Claude Code plugin
 
 Run:
 
 ```text
-claude mcp add --transport stdio --scope user channel-brains -- uvx --from git+https://github.com/Pu11en/channel-brains@v0.1.1 channel-brains-mcp
+claude plugin marketplace add Pu11en/channel-brains
+claude plugin install channel-brains@channel-brains --scope user
 ```
 
-If an absolute executable path was required, use it in place of `uvx`. Verify the
-saved registration with `claude mcp get channel-brains` and `claude mcp list`.
+Apply the new plugin in the active Claude Code session with `/reload-plugins`,
+then inspect `/mcp` and require all six tools. If the current agent cannot issue
+a slash command programmatically, ask the user to enter only `/reload-plugins`.
 
-### Hermes Agent
+## Codex plugin
 
-Merge this entry under `mcp_servers` in `~/.hermes/config.yaml` without replacing
-other servers:
+Run:
 
-```yaml
-mcp_servers:
-  channel_brains:
-    command: uvx
-    args:
-      - --from
-      - git+https://github.com/Pu11en/channel-brains@v0.1.1
-      - channel-brains-mcp
-    timeout: 120
-    connect_timeout: 60
+```text
+codex plugin marketplace add Pu11en/channel-brains
+codex plugin add channel-brains@channel-brains
+codex plugin list
 ```
 
-If an absolute executable path was required, use it for `command` instead of `uvx`.
-Hermes registers the tools with names beginning `mcp_channel_brains_`.
+Codex loads newly installed plugin skills and MCP tools in a new task/session.
+Do not ask the user to restart the whole application; ask for one new task, then
+verify all six tools there.
 
-### ZCode
+## Hermes Agent
 
-Merge this server into `mcp.servers` in the user-level
-`~/.zcode/cli/config.json`. Preserve all existing servers and unrelated settings:
+Until Channel Brains is merged into the Nous-reviewed Hermes MCP catalog, use
+Hermes's native MCP registration command:
 
-```json
-{
-  "mcp": {
-    "servers": {
-      "channel-brains": {
-        "command": "uvx",
-        "args": [
-          "--from",
-          "git+https://github.com/Pu11en/channel-brains@v0.1.1",
-          "channel-brains-mcp"
-        ]
-      }
-    }
-  }
-}
+```text
+hermes mcp add channel-brains --command uvx --connect-timeout 60 --args --from git+https://github.com/Pu11en/channel-brains@v0.1.1 channel-brains-mcp
 ```
 
-If an absolute executable path was required, use it for `command` instead of `uvx`.
-ZCode can also add the same definition through **Settings → MCP Servers → New MCP
-Server** using **User** scope and **stdio** type. Confirm that the server is enabled.
+Run `/reload-mcp` in the active Hermes session and require the six tools with
+the `mcp_channel_brains_` prefix. A candidate upstream catalog manifest is kept
+in `integrations/hermes/manifest.yaml`; once accepted upstream, prefer:
 
-## 4. Reload and verify
+```text
+hermes mcp install channel-brains
+```
 
-Reload or restart MCP servers using the current client's supported mechanism. If the
-client cannot reload itself safely, finish all configuration first and ask the user
-for only one action: close and reopen the client.
+## Other local MCP clients
 
-After reload, inspect the connected server and require all six tools listed above.
-Do not claim installation succeeded based only on the config file or offline check.
-If runtime discovery is impossible from the current session, say that configuration
-and preflight succeeded but final discovery remains pending until the client reopens.
+If the current client is not listed above but supports local stdio MCP servers,
+use the generic definition in `plugins/channel-brains/.mcp.json` or translate its
+`uvx` command and arguments into the client's documented user-scoped format.
+Prefer a supported plugin or marketplace mechanism when one exists. Activate or
+reload the client tool registry when supported, then require the same six tools.
+Ask the user for a new task only when the client exposes no live reload mechanism.
 
-When verification succeeds, tell the user simply that Channel Brains is installed
-and ready, then ask for the YouTube channel URL they want to index.
+If the environment is a web-only chat with no access to the user's computer, say
+clearly that it cannot install local software. Do not pretend configuration was
+written or that tools were connected.
+
+## Completion language
+
+Use these states accurately:
+
+- **Preflight passed**: the offline `--check` succeeded.
+- **Plugin installed**: the client saved and enabled the plugin.
+- **Connected and ready**: the client connected to the MCP server and discovered
+  all six tools.
+- **Reload pending**: registration succeeded but the client has not refreshed
+  its tool inventory yet.
+
+Only say “Channel Brains is installed and ready” for the connected-and-ready
+state. Then ask which YouTube channel the user wants to index.

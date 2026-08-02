@@ -1,0 +1,29 @@
+{
+  "name": "channel-brains",
+  "version": "0.1.1",
+  "description": "Index and search public YouTube channel captions with timestamp citations.",
+  "author": {
+    "name": "Pu11en",
+    "url": "https://github.com/Pu11en"
+  },
+  "homepage": "https://github.com/Pu11en/channel-brains",
+  "repository": "https://github.com/Pu11en/channel-brains",
+  "license": "MIT",
+  "keywords": ["youtube", "captions", "search", "mcp"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Channel Brains",
+    "shortDescription": "Search YouTube channels with timestamp citations.",
+    "longDescription": "Build a local searchable brain from public YouTube captions, then retrieve evidence with links to the exact moments in the source videos.",
+    "developerName": "Pu11en",
+    "category": "Productivity",
+    "capabilities": ["Research", "Search"],
+    "websiteURL": "https://github.com/Pu11en/channel-brains",
+    "defaultPrompt": [
+      "Create a brain for this YouTube channel.",
+      "Search my channel brain and cite timestamped evidence.",
+      "Show the indexing status for my channel brain."
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

@@ -1,0 +1,15 @@
+{
+  "name": "channel-brains",
+  "description": "Channel Brains plugins",
+  "plugins": [
+    {
+      "name": "channel-brains",
+      "source": "./plugins/channel-brains",
+      "description": "Index and search public YouTube channel captions with timestamp citations.",
+      "version": "0.1.1",
+      "category": "Productivity",
+      "tags": ["youtube", "captions", "search", "mcp"],
+      "strict": true
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "channel-brains": {
+      "command": "uvx",
+      "args": [
+        "--from",
+        "git+https://github.com/Pu11en/channel-brains@v0.1.1",
+        "channel-brains-mcp"
+      ]
+    }
+  }
+}

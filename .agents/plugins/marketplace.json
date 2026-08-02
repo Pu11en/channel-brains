@@ -1,0 +1,20 @@
+{
+  "name": "channel-brains",
+  "interface": {
+    "displayName": "Channel Brains"
+  },
+  "plugins": [
+    {
+      "name": "channel-brains",
+      "source": {
+        "source": "local",
+        "path": "./plugins/channel-brains"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

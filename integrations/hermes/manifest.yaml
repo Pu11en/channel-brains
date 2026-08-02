@@ -1,0 +1,39 @@
+# Candidate NousResearch Hermes Agent MCP catalog entry.
+# Submit this file as optional-mcps/channel-brains/manifest.yaml upstream.
+manifest_version: 1
+
+name: channel-brains
+description: Index and search public YouTube captions with timestamp citations.
+source: https://github.com/Pu11en/channel-brains
+
+transport:
+  type: stdio
+  command: "uvx"
+  args:
+    - "--from"
+    - "git+https://github.com/Pu11en/channel-brains@v0.1.1"
+    - "channel-brains-mcp"
+  version: "0.1.1"
+
+auth:
+  type: none
+
+tools:
+  default_enabled:
+    - create_brain
+    - get_brain_status
+    - list_brain_videos
+    - search_brain
+    - get_video_transcript
+    - delete_brain
+
+post_install: |
+  Channel Brains runs locally and needs no API key. The uvx command installs
+  its Python dependencies, including yt-dlp; no global yt-dlp install is needed.
+
+  Creating a brain makes public YouTube requests. Do not call create_brain
+  until the user explicitly supplies a channel URL and asks to index it.
+
+  If YouTube persistently returns HTTP 429, configure one optional cookie or
+  proxy environment variable documented at:
+  https://github.com/Pu11en/channel-brains#persistent-youtube-rate-limits

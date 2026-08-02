@@ -1,5 +1,16 @@
 # Channel Brains
 
+## One-line installation
+
+Paste this into your local AI coding workspace:
+
+> Get this on yourself: https://github.com/Pu11en/channel-brains
+
+That is the complete user instruction. The AI should identify its own client,
+install the appropriate Channel Brains plugin or MCP adapter, activate it, and
+verify the six tools. You should not need to know what MCP, `uvx`, JSON, TOML,
+YAML, or a plugin marketplace is.
+
 **Channel Brains** is a local, stdio MCP server that indexes publicly available YouTube captions into a searchable SQLite FTS5 database. It runs on your computer, needs no API key, and preserves timestamped links back to the original videos.
 
 It is deliberately small and local:
@@ -10,21 +21,63 @@ It is deliberately small and local:
 - One channel ingestion job at a time, with resumable per-video progress
 - Search results cite the original video and timestamp
 
-## Install with your AI agent
+## What the AI does
 
-Send this single message to Codex, Claude Code, Hermes Agent, or ZCode:
+Natural requests such as “get this on yourself,” “install this,” or “add this to
+your tools,” when accompanied by the repository URL, all mean the same thing.
+The AI must not make the user restate the request using technical terminology.
 
-> Install this MCP into yourself: https://github.com/Pu11en/channel-brains
+The agent reads
+[`AGENT_INSTALL.md`](AGENT_INSTALL.md), detects which supported client it is running
+inside, installs the prerequisite if needed, runs the offline health check, installs the
+client-appropriate plugin or catalog adapter, and verifies that all six tools are available.
 
-That is the entire beginner installation flow. The agent should read
-[`AGENT_INSTALL.md`](AGENT_INSTALL.md), detect which supported client it is running
-inside, install the prerequisite if needed, run the offline health check, add the
-user-scoped stdio server, and verify that all six tools are available.
+Channel Brains is still an MCP server: the plugin is the easy-to-install wrapper that
+bundles the MCP registration and usage instructions. The same repository provides
+compatible packaging for ZCode, Claude Code, and Codex, plus a Hermes adapter.
 
-The agent needs permission to run terminal commands and edit its local MCP
-configuration. A web-only chat that cannot access your computer cannot install a
-local MCP server. If the client cannot reload MCP servers while it is running, the
-agent will finish the configuration and ask you to reopen the client once.
+The agent needs permission to install a plugin and run local commands. A web-only chat
+that cannot access your computer cannot install a local MCP server.
+
+## Direct plugin installation
+
+All plugin routes require [uv](https://docs.astral.sh/uv/). The plugin uses `uvx` to
+launch the pinned release. `yt-dlp` is included in that release and must not be
+installed globally.
+
+### ZCode
+
+Open **Settings → Plugins → Create → Add marketplace**, enter
+`https://github.com/Pu11en/channel-brains`, then install **Channel Brains**. ZCode
+refreshes the affected session automatically when the plugin is enabled.
+
+### Claude Code
+
+```bash
+claude plugin marketplace add Pu11en/channel-brains
+claude plugin install channel-brains@channel-brains --scope user
+```
+
+Run `/reload-plugins` to activate it without restarting Claude Code.
+
+### Codex
+
+```bash
+codex plugin marketplace add Pu11en/channel-brains
+codex plugin add channel-brains@channel-brains
+```
+
+Open one new Codex task after installation. Restarting the application is not required.
+
+### Hermes Agent
+
+```bash
+hermes mcp add channel-brains --command uvx --connect-timeout 60 --args --from git+https://github.com/Pu11en/channel-brains@v0.1.1 channel-brains-mcp
+```
+
+Run `/reload-mcp` to activate it in the current Hermes session. A candidate manifest
+for the reviewed Hermes MCP catalog is included at
+[`integrations/hermes/manifest.yaml`](integrations/hermes/manifest.yaml).
 
 ## Manual install
 
@@ -138,13 +191,14 @@ can be configured separately with `CHANNEL_BRAINS_YOUTUBE_PROXY`, using an `http
 `https`, `socks4`, `socks5`, or `socks5h` URL. After changing the MCP environment,
 restart the server and call `create_brain` again with the same channel URL to resume.
 
-## MCP client configuration
+## Manual MCP client configuration
 
+These definitions are fallbacks for clients where plugin installation is unavailable.
 All examples use the published `Pu11en/channel-brains` release command.
 
 ### Hermes Agent
 
-Add this entry under `mcp_servers` in your Hermes configuration, then restart Hermes:
+Add this entry under `mcp_servers` in your Hermes configuration, then run `/reload-mcp`:
 
 ```yaml
 mcp_servers:
@@ -185,12 +239,12 @@ command = "uvx"
 args = ["--from", "git+https://github.com/Pu11en/channel-brains@v0.1.1", "channel-brains-mcp"]
 ```
 
-Restart Codex after saving the file.
+Open a new Codex task after saving the file.
 
 ### ZCode
 
 Merge this server into `mcp.servers` in the user-level
-`~/.zcode/cli/config.json`, then reload ZCode:
+`~/.zcode/cli/config.json`, then open a new ZCode task:
 
 ```json
 {
