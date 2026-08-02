@@ -52,4 +52,6 @@ jobs:
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.14'
         env:
           CHANNEL_BRAINS_HOME: ${{ runner.temp }}/channel-brains-check
-        run: uvx --from dist/channel_brains_mcp-*.whl channel-brains-mcp --check
+        run: |
+          uvx --from dist/channel_brains_mcp-*.whl channel-brains-mcp --check
+          uvx --from dist/channel_brains_mcp-*.whl channel-brains get_brain_status

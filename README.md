@@ -31,6 +31,8 @@ The agent reads
 [`AGENT_INSTALL.md`](AGENT_INSTALL.md), detects which supported client it is running
 inside, installs the prerequisite if needed, runs the offline health check, installs the
 client-appropriate plugin or catalog adapter, and verifies that all six tools are available.
+If the current task cannot refresh newly installed MCP tools, the AI uses the
+same six operations through the bundled command bridge and continues immediately.
 
 Channel Brains is still an MCP server: the plugin is the easy-to-install wrapper that
 bundles the MCP registration and usage instructions. The same repository provides
@@ -47,9 +49,19 @@ installed globally.
 
 ### ZCode
 
-Open **Settings → Plugins → Create → Add marketplace**, enter
-`https://github.com/Pu11en/channel-brains`, then install **Channel Brains**. ZCode
-refreshes the affected session automatically when the plugin is enabled.
+The AI installs the bundled plugin itself by running this from its repository
+clone:
+
+```bash
+uv run --no-project python scripts/install_zcode_plugin.py
+```
+
+The installer copies Channel Brains to ZCode's stable user plugin directory and
+safely adds that directory to `~/.zcode/cli/config.json`. It preserves unrelated
+plugins, MCP servers, and settings. No marketplace clicking or application
+restart is required; the user's channel URL can be the next message in the same
+task. On ZCode versions that freeze a task's tool inventory, the AI uses the
+same-session bridge until native tools become visible.
 
 ### Claude Code
 
@@ -58,7 +70,9 @@ claude plugin marketplace add Pu11en/channel-brains
 claude plugin install channel-brains@channel-brains --scope user
 ```
 
-Run `/reload-plugins` to activate it without restarting Claude Code.
+Claude Code can activate it with `/reload-plugins`. If the agent cannot invoke
+that command itself, it continues through the same-session bridge; the user does
+not have to reload anything.
 
 ### Codex
 
@@ -67,17 +81,35 @@ codex plugin marketplace add Pu11en/channel-brains
 codex plugin add channel-brains@channel-brains
 ```
 
-Open one new Codex task after installation. Restarting the application is not required.
+The native tools appear automatically in future Codex tasks. The installation
+task remains immediately usable through the same-session bridge.
 
 ### Hermes Agent
 
 ```bash
-hermes mcp add channel-brains --command uvx --connect-timeout 60 --args --from git+https://github.com/Pu11en/channel-brains@v0.1.1 channel-brains-mcp
+hermes mcp add channel-brains --command uvx --connect-timeout 60 --args --from git+https://github.com/Pu11en/channel-brains@v0.1.2 channel-brains-mcp
 ```
 
-Run `/reload-mcp` to activate it in the current Hermes session. A candidate manifest
-for the reviewed Hermes MCP catalog is included at
+The installing AI accepts Hermes's default **enable all six tools** prompt and
+verifies discovery. Hermes can activate it with `/reload-mcp`; otherwise the AI
+uses the same-session bridge. A candidate manifest for the reviewed Hermes MCP
+catalog is included at
 [`integrations/hermes/manifest.yaml`](integrations/hermes/manifest.yaml).
+
+### Same-session bridge
+
+Claude Code, Codex, ZCode, and other clients may freeze the current task's MCP
+tool inventory. Installation still finishes in that task. The AI runs the same
+six operation names through this pinned local command until native MCP tools are
+available:
+
+```bash
+uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.2" channel-brains get_brain_status
+```
+
+`create_brain` starts a detached local worker, so indexing continues after the
+one-shot command returns. This bridge is for agent continuity, not a second
+product the user must learn; native plugin tools remain the preferred interface.
 
 ## Manual install
 
@@ -86,13 +118,13 @@ Requires [uv](https://docs.astral.sh/uv/).
 MCP clients launch the pinned production release with:
 
 ```bash
-uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.1" channel-brains-mcp
+uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.2" channel-brains-mcp
 ```
 
 Verify the installation without starting the MCP server or contacting YouTube:
 
 ```bash
-uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.1" channel-brains-mcp --check
+uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.2" channel-brains-mcp --check
 ```
 
 A successful check prints one JSON object with `"status": "ok"`, `"transport":
@@ -122,7 +154,7 @@ generic server definition used by that flow is:
   "command": "uvx",
   "args": [
     "--from",
-    "git+https://github.com/Pu11en/channel-brains@v0.1.1",
+    "git+https://github.com/Pu11en/channel-brains@v0.1.2",
     "channel-brains-mcp"
   ]
 }
@@ -164,7 +196,7 @@ By default, Channel Brains stores its SQLite database and lock file in the platf
 Set `CHANNEL_BRAINS_HOME` before launching the MCP server to use another location:
 
 ```bash
-CHANNEL_BRAINS_HOME=/path/to/channel-brains-data uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.1" channel-brains-mcp
+CHANNEL_BRAINS_HOME=/path/to/channel-brains-data uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.2" channel-brains-mcp
 ```
 
 Captions and search indexes stay on the local machine. The only network requests are public YouTube requests made by `yt-dlp` and caption URL retrieval during ingestion.
@@ -206,7 +238,7 @@ mcp_servers:
     command: uvx
     args:
       - --from
-      - git+https://github.com/Pu11en/channel-brains@v0.1.1
+      - git+https://github.com/Pu11en/channel-brains@v0.1.2
       - channel-brains-mcp
     timeout: 120
     connect_timeout: 60
@@ -220,7 +252,7 @@ Register it at user scope:
 
 ```bash
 claude mcp add --transport stdio --scope user channel-brains -- \
-  uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.1" channel-brains-mcp
+  uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.2" channel-brains-mcp
 ```
 
 Confirm it is available:
@@ -236,7 +268,7 @@ Add this to `~/.codex/config.toml`:
 ```toml
 [mcp_servers.channel-brains]
 command = "uvx"
-args = ["--from", "git+https://github.com/Pu11en/channel-brains@v0.1.1", "channel-brains-mcp"]
+args = ["--from", "git+https://github.com/Pu11en/channel-brains@v0.1.2", "channel-brains-mcp"]
 ```
 
 Open a new Codex task after saving the file.
@@ -254,7 +286,7 @@ Merge this server into `mcp.servers` in the user-level
         "command": "uvx",
         "args": [
           "--from",
-          "git+https://github.com/Pu11en/channel-brains@v0.1.1",
+          "git+https://github.com/Pu11en/channel-brains@v0.1.2",
           "channel-brains-mcp"
         ]
       }
@@ -280,7 +312,7 @@ Add a local MCP server entry to your OpenCode configuration:
       "command": [
         "uvx",
         "--from",
-        "git+https://github.com/Pu11en/channel-brains@v0.1.1",
+        "git+https://github.com/Pu11en/channel-brains@v0.1.2",
         "channel-brains-mcp"
       ],
       "enabled": true

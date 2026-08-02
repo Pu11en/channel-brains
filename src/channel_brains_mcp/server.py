@@ -178,8 +178,6 @@ def _create_brain(repo: Repository, jobs: JobManager, channel_url: str, max_vide
                 message="This brain is already ready. No network work was queued.",
             )
         was_queued = jobs.enqueue(brain_id)
-        if was_queued:
-            jobs.start_worker()
         return CreateBrainResult(
             brain_id=brain_id,
             status=status,
@@ -201,7 +199,6 @@ def _create_brain(repo: Repository, jobs: JobManager, channel_url: str, max_vide
         max_videos=max_videos,
     )
     jobs.enqueue(brain_id)
-    jobs.start_worker()
     return CreateBrainResult(
         brain_id=brain_id,
         status="queued",

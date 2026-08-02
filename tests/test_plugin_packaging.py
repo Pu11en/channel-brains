@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 from channel_brains_mcp.config import VERSION
@@ -76,6 +78,8 @@ def test_usage_skill_names_the_complete_tool_contract() -> None:
         assert f"`{tool_name}`" in skill
     assert "untrusted third-party content" in skill
     assert "no separate global `yt-dlp`" in skill
+    assert RELEASE_SOURCE in skill
+    assert "same-session bridge" in skill
 
 
 def test_hermes_candidate_manifest_uses_the_same_release_and_tools() -> None:
@@ -90,7 +94,7 @@ def test_hermes_candidate_manifest_uses_the_same_release_and_tools() -> None:
         assert f"    - {tool_name}" in manifest
 
 
-def test_agent_install_uses_plugin_first_activation_commands() -> None:
+def test_agent_install_uses_automatic_client_activation_commands() -> None:
     runbook = (ROOT / "AGENT_INSTALL.md").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
@@ -100,6 +104,76 @@ def test_agent_install_uses_plugin_first_activation_commands() -> None:
     assert "claude plugin install channel-brains@channel-brains" in runbook
     assert "codex plugin add channel-brains@channel-brains" in runbook
     assert "hermes mcp add channel-brains" in runbook
+    assert "hermes mcp test channel-brains" in runbook
+    assert "sending an empty line" in runbook
+    assert "python scripts/install_zcode_plugin.py" in runbook
+    assert "plugins.dirs" in runbook
+    assert "Never ask for an application" in runbook
     assert "/reload-plugins" in runbook
     assert "/reload-mcp" in runbook
     assert "does not need a separate global `yt-dlp`" in runbook
+    assert f"uvx --from {RELEASE_SOURCE} channel-brains <operation>" in runbook
+    assert "use the same-session bridge" in runbook.lower()
+
+
+def test_zcode_installer_preserves_config_and_is_idempotent(tmp_path: Path) -> None:
+    config_path = tmp_path / ".zcode" / "cli" / "config.json"
+    target_path = tmp_path / ".zcode" / "plugins" / "channel-brains"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(
+        json.dumps(
+            {
+                "mcp": {"servers": {"existing": {"command": "existing-server"}}},
+                "plugins": {"enabled": False, "dirs": ["/keep/me"], "custom": "keep"},
+                "unrelated": {"keep": True},
+            }
+        ),
+        encoding="utf-8",
+    )
+    command = [
+        sys.executable,
+        str(ROOT / "scripts" / "install_zcode_plugin.py"),
+        "--target",
+        str(target_path),
+        "--config",
+        str(config_path),
+    ]
+
+    first = subprocess.run(command, check=True, capture_output=True, text=True)
+    second = subprocess.run(command, check=True, capture_output=True, text=True)
+
+    assert json.loads(first.stdout)["status"] == "installed"
+    assert json.loads(second.stdout)["config_changed"] is False
+    config = load_json(config_path)
+    assert config["mcp"]["servers"]["existing"] == {"command": "existing-server"}
+    assert config["plugins"]["enabled"] is True
+    assert config["plugins"]["dirs"] == ["/keep/me", str(target_path.resolve())]
+    assert config["plugins"]["custom"] == "keep"
+    assert config["unrelated"] == {"keep": True}
+    assert load_json(target_path / ".zcode-plugin" / "plugin.json")["name"] == "channel-brains"
+
+
+def test_zcode_installer_refuses_to_replace_an_unrelated_directory(tmp_path: Path) -> None:
+    config_path = tmp_path / "config.json"
+    target_path = tmp_path / "existing-data"
+    target_path.mkdir()
+    marker = target_path / "keep.txt"
+    marker.write_text("do not overwrite", encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "install_zcode_plugin.py"),
+            "--target",
+            str(target_path),
+            "--config",
+            str(config_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert marker.read_text(encoding="utf-8") == "do not overwrite"
+    assert not config_path.exists()
