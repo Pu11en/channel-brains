@@ -155,7 +155,7 @@ def ingest_brain(repo: Repository, brain_id: str, youtube: YoutubeClientLike) ->
                 repo.set_brain(
                     brain_id,
                     status="paused",
-                    last_error="YouTube rate limited discovery (HTTP 429). Explicitly create this brain again later to resume.",
+                    last_error="YouTube rate limited discovery (HTTP 429) after bounded retries. Create this brain again later to resume; persistent limits may require the documented cookie or proxy setting.",
                     clear_current_video=True,
                 )
                 return
@@ -184,10 +184,16 @@ def ingest_brain(repo: Repository, brain_id: str, youtube: YoutubeClientLike) ->
             _ingest_one_video(repo, brain_id, video, youtube, str(brain["language"]))
         except Exception as exc:
             if _is_rate_limited(exc):
+                repo.upsert_video_status(
+                    brain_id,
+                    str(video["video_id"]),
+                    "pending",
+                    error="Paused after YouTube rate limiting; safe to resume.",
+                )
                 repo.set_brain(
                     brain_id,
                     status="paused",
-                    last_error="YouTube rate limited ingestion (HTTP 429). Explicitly create this brain again later to resume.",
+                    last_error="YouTube rate limited ingestion (HTTP 429) after bounded retries. Create this brain again later to resume; persistent limits may require the documented cookie or proxy setting.",
                     clear_current_video=True,
                 )
                 return

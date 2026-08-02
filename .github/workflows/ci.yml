@@ -9,27 +9,47 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  offline-contract:
     name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.11"]
+        include:
+          - { os: ubuntu-latest, python-version: "3.10" }
+          - { os: ubuntu-latest, python-version: "3.11" }
+          - { os: ubuntu-latest, python-version: "3.12" }
+          - { os: ubuntu-latest, python-version: "3.13" }
+          - { os: ubuntu-latest, python-version: "3.14" }
+          - { os: macos-latest, python-version: "3.12" }
+          - { os: windows-latest, python-version: "3.12" }
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
-          version: "0.9.7"
-      - uses: actions/setup-python@v5
-        with:
+          version: "0.11.2"
           python-version: ${{ matrix.python-version }}
+          enable-cache: true
+
       - name: Install locked dependencies
         run: uv sync --extra dev --locked
+
       - name: Lint
         run: uv run ruff check .
-      - name: Test
+
+      - name: Run offline contract suite
         run: uv run pytest
-      - name: Build package
+
+      - name: Build distributions
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.14'
         run: uv build
+
+      - name: Smoke-test built wheel
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.14'
+        env:
+          CHANNEL_BRAINS_HOME: ${{ runner.temp }}/channel-brains-check
+        run: uvx --from dist/channel_brains_mcp-*.whl channel-brains-mcp --check

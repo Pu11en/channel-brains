@@ -4,6 +4,8 @@ import pytest
 
 from channel_brains_mcp.youtube import (
     CaptionCue,
+    YoutubeClient,
+    YoutubeRequestError,
     is_valid_channel_url,
     merge_cues_into_chunks,
     normalize_channel_url,
@@ -12,6 +14,61 @@ from channel_brains_mcp.youtube import (
     rolling_dedup_vtt,
     select_caption_track,
 )
+
+
+class _FailingYoutubeDL:
+    attempts = 0
+
+    def __init__(self, options):
+        self.options = options
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return False
+
+    def extract_info(self, url, download=False):
+        import yt_dlp
+
+        type(self).attempts += 1
+        raise yt_dlp.utils.DownloadError("HTTP Error 429: Too Many Requests")
+
+
+def test_youtube_client_retries_then_preserves_metadata_rate_limit(monkeypatch):
+    import yt_dlp
+
+    _FailingYoutubeDL.attempts = 0
+    monkeypatch.setattr(yt_dlp, "YoutubeDL", _FailingYoutubeDL)
+    sleeps = []
+    client = YoutubeClient(sleep=sleeps.append)
+
+    with pytest.raises(YoutubeRequestError) as caught:
+        client.extract_metadata("https://youtu.be/rate0001")
+
+    assert caught.value.status_code == 429
+    assert _FailingYoutubeDL.attempts == 3
+    assert sleeps == [5.0, 20.0]
+
+
+def test_youtube_client_applies_explicit_browser_cookies_and_proxy(monkeypatch):
+    monkeypatch.setenv("CHANNEL_BRAINS_YOUTUBE_COOKIES_FROM_BROWSER", "Firefox")
+    monkeypatch.setenv("CHANNEL_BRAINS_YOUTUBE_PROXY", "socks5://127.0.0.1:1080")
+
+    client = YoutubeClient(sleep=lambda _: None)
+
+    assert client._ydl_opts["cookiesfrombrowser"] == ("firefox", None, None, None)
+    assert client._ydl_opts["proxy"] == "socks5://127.0.0.1:1080"
+
+
+def test_youtube_client_rejects_conflicting_cookie_sources(monkeypatch, tmp_path):
+    cookie_file = tmp_path / "cookies.txt"
+    cookie_file.write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
+    monkeypatch.setenv("CHANNEL_BRAINS_YOUTUBE_COOKIES_FROM_BROWSER", "chrome")
+    monkeypatch.setenv("CHANNEL_BRAINS_YOUTUBE_COOKIES_FILE", str(cookie_file))
+
+    with pytest.raises(ValueError, match="Set only one"):
+        YoutubeClient(sleep=lambda _: None)
 
 
 class TestURLNormalization:

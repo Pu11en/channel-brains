@@ -4,16 +4,17 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from html import unescape
 from io import StringIO
-
-import yt_dlp
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,10 @@ def select_channel_candidates(
             {
                 "video_id": video_id,
                 "title": str(entry.get("title") or "Untitled")[:200],
-                "webpage_url": str(entry.get("webpage_url") or f"https://youtu.be/{video_id}"),
+                "webpage_url": str(
+                    entry.get("webpage_url")
+                    or f"https://www.youtube.com/watch?v={video_id}"
+                ),
                 "duration_seconds": entry.get("duration_seconds", entry.get("duration")),
                 "view_count": known_view_count,
                 "upload_date": entry.get("upload_date"),
@@ -432,10 +436,34 @@ class CaptionDownloadError(RuntimeError):
         self.status_code = status_code
 
 
+class YoutubeRequestError(RuntimeError):
+    """A classified yt-dlp request failure that the job layer can recover from."""
+
+    def __init__(self, message: str, status_code: int | None = None) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+
+
+def _download_error_status(exc: BaseException) -> int | None:
+    """Recover an HTTP status from yt-dlp's wrapped exception chain or message."""
+    current: BaseException | None = exc
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        for attribute in ("status_code", "status", "code"):
+            value = getattr(current, attribute, None)
+            if isinstance(value, int) and 100 <= value <= 599:
+                return value
+        current = current.__cause__ or current.__context__
+    match = re.search(r"(?:HTTP(?: Error)?|status(?: code)?)[^0-9]{0,8}([1-5][0-9]{2})", str(exc), re.I)
+    return int(match.group(1)) if match else None
+
+
 class YoutubeClient:
     """Production yt-dlp adapter for YouTube channel operations."""
 
-    def __init__(self) -> None:
+    def __init__(self, sleep: Callable[[float], None] = time.sleep) -> None:
+        self._sleep = sleep
         self._ydl_opts: dict[str, object] = {
             "quiet": True,
             "no_warnings": True,
@@ -447,15 +475,75 @@ class YoutubeClient:
             "socket_timeout": 20,
             "retries": 3,
             "extractor_retries": 3,
+            # Pace a complete channel ingest instead of presenting YouTube with a burst.
+            "sleep_interval_requests": 0.75,
+            "retry_sleep_functions": {
+                "http": lambda attempt: min(2**attempt, 20),
+                "extractor": lambda attempt: min(2**attempt, 20),
+            },
         }
+        self._apply_explicit_network_options()
         self._logger = _YtdlLogger()
+
+    def _apply_explicit_network_options(self) -> None:
+        browser = os.environ.get("CHANNEL_BRAINS_YOUTUBE_COOKIES_FROM_BROWSER", "").strip()
+        cookie_file = os.environ.get("CHANNEL_BRAINS_YOUTUBE_COOKIES_FILE", "").strip()
+        if browser and cookie_file:
+            raise ValueError(
+                "Set only one of CHANNEL_BRAINS_YOUTUBE_COOKIES_FROM_BROWSER or "
+                "CHANNEL_BRAINS_YOUTUBE_COOKIES_FILE"
+            )
+        if browser:
+            if not re.fullmatch(r"[a-zA-Z0-9_-]+", browser):
+                raise ValueError("YouTube cookies browser name has an invalid format")
+            self._ydl_opts["cookiesfrombrowser"] = (browser.lower(), None, None, None)
+        if cookie_file:
+            path = Path(cookie_file).expanduser()
+            if not path.is_file():
+                raise ValueError("CHANNEL_BRAINS_YOUTUBE_COOKIES_FILE does not exist")
+            self._ydl_opts["cookiefile"] = str(path)
+
+        proxy = os.environ.get("CHANNEL_BRAINS_YOUTUBE_PROXY", "").strip()
+        if proxy:
+            parsed = urllib.parse.urlparse(proxy)
+            if parsed.scheme not in {"http", "https", "socks4", "socks5", "socks5h"}:
+                raise ValueError("CHANNEL_BRAINS_YOUTUBE_PROXY uses an unsupported URL scheme")
+            self._ydl_opts["proxy"] = proxy
+
+    def _extract_info(self, url: str, options: dict[str, object]) -> dict[str, object] | None:
+        """Run yt-dlp with two app-level 429 retries after its internal retries."""
+        import yt_dlp
+
+        delays = (5.0, 20.0)
+        for attempt in range(len(delays) + 1):
+            try:
+                with yt_dlp.YoutubeDL(options) as ydl:
+                    result = ydl.extract_info(url, download=False)
+                return dict(result) if isinstance(result, dict) else None
+            except yt_dlp.utils.DownloadError as exc:
+                status_code = _download_error_status(exc)
+                if status_code != 429:
+                    raise YoutubeRequestError(
+                        "YouTube request failed", status_code=status_code
+                    ) from exc
+                if attempt == len(delays):
+                    raise YoutubeRequestError(
+                        "YouTube returned HTTP 429 after bounded retries", status_code=429
+                    ) from exc
+                logger.warning(
+                    "YouTube rate limited a request; retrying in %.0f seconds (%d/%d)",
+                    delays[attempt],
+                    attempt + 1,
+                    len(delays),
+                )
+                self._sleep(delays[attempt])
+        raise AssertionError("unreachable")
 
     def extract_listing(self, normalized_url: str) -> list[dict[str, object]]:
         listing_url = build_listing_url(normalized_url)
         ydl_opts = {**self._ydl_opts, "logger": self._logger}
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            result = ydl.extract_info(listing_url, download=False)
+        result = self._extract_info(listing_url, ydl_opts)
 
         entries = result.get("entries", []) if isinstance(result, dict) else []
         # Exhaust the complete listing before selection. Ranking belongs in the pure helper
@@ -469,10 +557,11 @@ class YoutubeClient:
             "extract_flat": False,
         }
         try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(webpage_url, download=False)
+            info = self._extract_info(webpage_url, ydl_opts)
             return extract_video_info_dict(info) if info else None
-        except yt_dlp.utils.DownloadError as exc:
+        except YoutubeRequestError as exc:
+            if exc.status_code == 429:
+                raise
             logger.warning("Metadata extraction failed for %s: %s", webpage_url, exc)
             return None
 

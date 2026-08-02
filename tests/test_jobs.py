@@ -130,6 +130,47 @@ def test_rate_limit_pauses_discovery_instead_of_failing(tmp_path: Path) -> None:
     assert "429" in status["last_error"]
 
 
+def test_rate_limit_pauses_during_video_metadata_instead_of_failing_video(
+    tmp_path: Path,
+) -> None:
+    class MetadataRateLimitedYoutube(FixtureYoutube):
+        def extract_listing(self, normalized_url: str) -> list[dict[str, object]]:
+            return [
+                {
+                    "id": "manual01",
+                    "title": "Manual",
+                    "webpage_url": "https://youtu.be/manual01",
+                    "view_count": 1,
+                }
+            ]
+
+        def extract_metadata(self, webpage_url: str) -> dict[str, object] | None:
+            raise CaptionDownloadError("metadata rate limited", 429)
+
+    db_path = tmp_path / "channel_brains.sqlite3"
+    initialize_database(db_path)
+    repo = Repository(db_path)
+    brain_id = "d0b1c2d3e4f5"
+    repo.create_brain(
+        brain_id,
+        "https://www.youtube.com/@fixture",
+        "https://www.youtube.com/@fixture",
+        None,
+        None,
+        "en",
+        1,
+    )
+
+    ingest_brain(repo, brain_id, MetadataRateLimitedYoutube())
+
+    status = repo.get_brain_status(brain_id)
+    assert status["status"] == "paused"
+    assert status["pending_count"] == 1
+    assert status["processing_count"] == 0
+    assert status["failed_count"] == 0
+    assert "429" in status["last_error"]
+
+
 def test_expired_caption_url_refreshes_metadata_exactly_once(tmp_path: Path) -> None:
     class RefreshingYoutube(FixtureYoutube):
         def __init__(self) -> None:

@@ -2,16 +2,26 @@
 
 from __future__ import annotations
 
+import argparse
+import asyncio
+import json
 import logging
+import os
 import re
+import select
 import sys
+import threading
 import uuid
+from contextlib import suppress
 from typing import Any
 
+import anyio
+import mcp_types as mcp_types
 from filelock import FileLock, Timeout
 from mcp.server import MCPServer
+from mcp.shared.message import SessionMessage
 
-from channel_brains_mcp.config import MAX_SEARCH_RESULTS, get_ingest_lock_path, get_paths
+from channel_brains_mcp.config import MAX_SEARCH_RESULTS, VERSION, get_ingest_lock_path, get_paths
 from channel_brains_mcp.db import Repository, read_transaction
 from channel_brains_mcp.jobs import JobManager
 from channel_brains_mcp.models import (
@@ -368,40 +378,157 @@ def _timestamp(seconds: int) -> str:
 
 def build_server(repo: Repository, jobs: JobManager) -> MCPServer:
     """Build an injected, side-effect-free MCPServer with exactly six tools."""
-    server = MCPServer(name="Channel Brains", instructions=INSTRUCTIONS, version="0.1.0")
+    server = MCPServer(name="Channel Brains", instructions=INSTRUCTIONS, version=VERSION)
 
     @server.tool(name="create_brain", description="Explicitly queue or resume local channel caption indexing.")
-    def create_brain(channel_url: str, max_videos: int = 50, language: str = "en") -> CreateBrainResult:
+    async def create_brain(channel_url: str, max_videos: int = 50, language: str = "en") -> CreateBrainResult:
         return _create_brain(repo, jobs, channel_url, max_videos, language)
 
     @server.tool(name="get_brain_status", description="Read progress for one brain, or all local brains. Never contacts YouTube.")
-    def get_brain_status(brain_id: str | None = None) -> BrainStatusResult:
+    async def get_brain_status(brain_id: str | None = None) -> BrainStatusResult:
         return _get_status(repo, brain_id)
 
     @server.tool(name="list_brain_videos", description="Page through selected videos and outcomes. Never contacts YouTube.")
-    def list_brain_videos(brain_id: str, offset: int = 0, limit: int = 20) -> VideoListResult:
+    async def list_brain_videos(brain_id: str, offset: int = 0, limit: int = 20) -> VideoListResult:
         return _list_videos(repo, brain_id, offset, limit)
 
     @server.tool(name="search_brain", description="Return ranked, timestamped caption evidence. Never generates an answer or contacts YouTube.")
-    def search_brain(query: str, brain_id: str | None = None, limit: int = 8) -> SearchResult:
+    async def search_brain(query: str, brain_id: str | None = None, limit: int = 8) -> SearchResult:
         return _search(repo, query, brain_id, limit)
 
     @server.tool(name="get_video_transcript", description="Page through indexed caption chunks for one video. Never contacts YouTube.")
-    def get_video_transcript(brain_id: str, video_id: str, offset: int = 0, limit: int = 50) -> TranscriptResult:
+    async def get_video_transcript(brain_id: str, video_id: str, offset: int = 0, limit: int = 50) -> TranscriptResult:
         return _transcript(repo, brain_id, video_id, offset, limit)
 
     @server.tool(name="delete_brain", description="Permanently delete one brain only with confirm=true.")
-    def delete_brain(brain_id: str, confirm: bool = False) -> DeleteBrainResult:
+    async def delete_brain(brain_id: str, confirm: bool = False) -> DeleteBrainResult:
         return _delete(repo, jobs, brain_id, confirm)
 
     return server
 
 
+async def _run_stdio(server: MCPServer) -> None:
+    """Run MCP stdio without non-daemon AnyIO file-worker threads.
+
+    AnyIO's generic async-file wrapper can leave stdin reads or interpreter shutdown
+    stuck on supported Python runtimes. POSIX uses a native event-loop pipe. Windows
+    standard streams cannot use Proactor pipe transports, so a daemon reader forwards
+    complete lines through the asyncio loop's thread-safe scheduler.
+    """
+    read_sender, read_stream = anyio.create_memory_object_stream[SessionMessage | Exception](0)
+    write_stream, write_receiver = anyio.create_memory_object_stream[SessionMessage](0)
+
+    async def read_stdin() -> None:
+        if os.name == "nt":  # pragma: no cover - exercised by the Windows CI job
+            loop = asyncio.get_running_loop()
+            done = asyncio.Event()
+
+            def read_windows_stdin() -> None:
+                try:
+                    for line in sys.stdin.buffer:
+                        try:
+                            message = mcp_types.jsonrpc_message_adapter.validate_json(
+                                line, by_name=False
+                            )
+                            item: SessionMessage | Exception = SessionMessage(message)
+                        except Exception as exc:
+                            item = exc
+                        asyncio.run_coroutine_threadsafe(read_sender.send(item), loop).result()
+                except Exception:
+                    return
+                finally:
+                    with suppress(Exception):
+                        asyncio.run_coroutine_threadsafe(read_sender.aclose(), loop).result()
+                    with suppress(RuntimeError):
+                        loop.call_soon_threadsafe(done.set)
+
+            threading.Thread(
+                target=read_windows_stdin,
+                name="channel-brains-stdio",
+                daemon=True,
+            ).start()
+            await done.wait()
+            return
+
+        initial_line: bytes | None = None
+        readable, _, _ = select.select([sys.stdin], [], [], 0)
+        if readable:
+            initial_line = sys.stdin.buffer.readline()
+            if not initial_line:
+                await read_sender.aclose()
+                return
+        reader = asyncio.StreamReader()
+        protocol = asyncio.StreamReaderProtocol(reader)
+        await asyncio.get_running_loop().connect_read_pipe(lambda: protocol, sys.stdin)
+
+        async def send_line(line: bytes) -> None:
+            try:
+                message = mcp_types.jsonrpc_message_adapter.validate_json(line, by_name=False)
+                item: SessionMessage | Exception = SessionMessage(message)
+            except Exception as exc:
+                item = exc
+            await read_sender.send(item)
+
+        async with read_sender:
+            if initial_line is not None:
+                await send_line(initial_line)
+            while line := await reader.readline():
+                await send_line(line)
+
+    async def write_stdout() -> None:
+        async with write_receiver:
+            async for session_message in write_receiver:
+                payload = session_message.message.model_dump_json(
+                    by_alias=True, exclude_unset=True
+                )
+                sys.stdout.buffer.write((payload + "\n").encode("utf-8"))
+                sys.stdout.buffer.flush()
+
+    async with anyio.create_task_group() as tasks:
+        tasks.start_soon(read_stdin)
+        tasks.start_soon(write_stdout)
+        try:
+            await server._lowlevel_server.run(
+                read_stream,
+                write_stream,
+                server._lowlevel_server.create_initialization_options(),
+            )
+        finally:
+            await write_stream.aclose()
+            await read_stream.aclose()
+
+
 def main() -> None:
     """Start a production stdio MCP server. Initialization makes no network requests."""
+    parser = argparse.ArgumentParser(
+        prog="channel-brains-mcp",
+        description="Local stdio MCP server for searchable YouTube channel captions.",
+    )
+    parser.add_argument("--check", action="store_true", help="run local preflight checks and exit")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
+    args = parser.parse_args()
+
     configure_logging_to_stderr()
     paths = get_paths()
     repo = Repository(paths.database_path)
     repo.initialize_database()
     jobs = JobManager(repo=repo, youtube=YoutubeClient(), lock_path=str(paths.ingest_lock_path))
-    build_server(repo, jobs).run()
+    server = build_server(repo, jobs)
+    if args.check:
+        registered = anyio.run(server.list_tools)
+        actual_names = tuple(tool.name for tool in registered)
+        if actual_names != TOOL_NAMES:
+            raise RuntimeError(f"Tool registration mismatch: {actual_names!r}")
+        print(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "version": VERSION,
+                    "transport": "stdio",
+                    "tool_count": len(actual_names),
+                    "database": str(paths.database_path),
+                }
+            )
+        )
+        return
+    anyio.run(_run_stdio, server)

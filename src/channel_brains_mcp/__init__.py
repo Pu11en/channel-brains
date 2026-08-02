@@ -1,3 +1,5 @@
 """Channel Brains MCP — local stdio MCP server for searchable YouTube channel captions."""
 
-__version__ = "0.1.0"
+from channel_brains_mcp.config import VERSION
+
+__version__ = VERSION

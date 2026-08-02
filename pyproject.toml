@@ -4,14 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "channel-brains-mcp"
-version = "0.1.0"
+version = "0.1.1"
 description = "Local MCP server for searchable, timestamped YouTube channel captions"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 dependencies = [
   "filelock>=3.20,<4",
-  "mcp>=2.0,<3",
+  "mcp==2.0.0",
+  "mcp-types==2.0.0",
   "platformdirs>=4.4,<5",
   "pydantic>=2.12,<3",
   "webvtt-py>=0.5,<1",
@@ -33,7 +34,7 @@ packages = ["src/channel_brains_mcp"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q"
+addopts = "-q -m 'not live'"
 asyncio_mode = "auto"
 markers = [
   "live: requires live YouTube network access",

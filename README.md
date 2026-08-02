@@ -10,15 +10,43 @@ It is deliberately small and local:
 - One channel ingestion job at a time, with resumable per-video progress
 - Search results cite the original video and timestamp
 
-## Install
+## Install with your AI agent
+
+Send this single message to Codex, Claude Code, Hermes Agent, or ZCode:
+
+> Install this MCP into yourself: https://github.com/Pu11en/channel-brains
+
+That is the entire beginner installation flow. The agent should read
+[`AGENT_INSTALL.md`](AGENT_INSTALL.md), detect which supported client it is running
+inside, install the prerequisite if needed, run the offline health check, add the
+user-scoped stdio server, and verify that all six tools are available.
+
+The agent needs permission to run terminal commands and edit its local MCP
+configuration. A web-only chat that cannot access your computer cannot install a
+local MCP server. If the client cannot reload MCP servers while it is running, the
+agent will finish the configuration and ask you to reopen the client once.
+
+## Manual install
 
 Requires [uv](https://docs.astral.sh/uv/).
 
-After the public v0.1.0 release, run it directly from GitHub:
+MCP clients launch the pinned production release with:
 
 ```bash
-uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.0" channel-brains-mcp
+uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.1" channel-brains-mcp
 ```
+
+Verify the installation without starting the MCP server or contacting YouTube:
+
+```bash
+uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.1" channel-brains-mcp --check
+```
+
+A successful check prints one JSON object with `"status": "ok"`, `"transport":
+"stdio"`, and `"tool_count": 6`.
+
+Running the command without `--check` in a terminal intentionally waits for MCP
+messages on stdin. Your MCP client owns that process.
 
 The release is published from [`Pu11en/channel-brains`](https://github.com/Pu11en/channel-brains).
 
@@ -26,10 +54,29 @@ For development:
 
 ```bash
 uv sync --extra dev
-uv run channel-brains-mcp
+uv run channel-brains-mcp --check
 ```
 
 The server communicates only through standard input and output. Do not run it as an HTTP service.
+
+## Agent server definition
+
+The automated agent flow is defined in [`AGENT_INSTALL.md`](AGENT_INSTALL.md). The
+generic server definition used by that flow is:
+
+```json
+{
+  "command": "uvx",
+  "args": [
+    "--from",
+    "git+https://github.com/Pu11en/channel-brains@v0.1.1",
+    "channel-brains-mcp"
+  ]
+}
+```
+
+Use a startup/connect timeout of at least 60 seconds. The first `uvx` run downloads
+the pinned package and can be slower than later starts.
 
 ## First workflow
 
@@ -57,17 +104,39 @@ Channel Brains exposes exactly these six tools:
 
 By default, Channel Brains stores its SQLite database and lock file in the platform’s user-data directory:
 
-- Windows: `%LOCALAPPDATA%\channel-brains`
-- macOS: `~/Library/Application Support/channel-brains`
-- Linux: `~/.local/share/channel-brains`
+- Windows: `%LOCALAPPDATA%\channel-brains-mcp`
+- macOS: `~/Library/Application Support/channel-brains-mcp`
+- Linux: `~/.local/share/channel-brains-mcp`
 
 Set `CHANNEL_BRAINS_HOME` before launching the MCP server to use another location:
 
 ```bash
-CHANNEL_BRAINS_HOME=/path/to/channel-brains-data uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.0" channel-brains-mcp
+CHANNEL_BRAINS_HOME=/path/to/channel-brains-data uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.1" channel-brains-mcp
 ```
 
 Captions and search indexes stay on the local machine. The only network requests are public YouTube requests made by `yt-dlp` and caption URL retrieval during ingestion.
+
+### Persistent YouTube rate limits
+
+Channel Brains first uses paced anonymous requests and bounded retries. If YouTube keeps
+returning HTTP 429 from your network, explicitly opt in to one of yt-dlp's authenticated
+cookie sources in the MCP server environment:
+
+```text
+CHANNEL_BRAINS_YOUTUBE_COOKIES_FROM_BROWSER=firefox
+```
+
+Or provide a Netscape-format cookie file:
+
+```text
+CHANNEL_BRAINS_YOUTUBE_COOKIES_FILE=/private/path/youtube-cookies.txt
+```
+
+Set only one cookie source. Browser cookies grant the server the same YouTube session
+access as that browser; keep cookie files private and never commit them. A network proxy
+can be configured separately with `CHANNEL_BRAINS_YOUTUBE_PROXY`, using an `http`,
+`https`, `socks4`, `socks5`, or `socks5h` URL. After changing the MCP environment,
+restart the server and call `create_brain` again with the same channel URL to resume.
 
 ## MCP client configuration
 
@@ -83,7 +152,7 @@ mcp_servers:
     command: uvx
     args:
       - --from
-      - git+https://github.com/Pu11en/channel-brains@v0.1.0
+      - git+https://github.com/Pu11en/channel-brains@v0.1.1
       - channel-brains-mcp
     timeout: 120
     connect_timeout: 60
@@ -96,8 +165,8 @@ Hermes discovers the six tools at startup and registers them with an `mcp_channe
 Register it at user scope:
 
 ```bash
-claude mcp add -s user channel-brains -- \
-  uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.0" channel-brains-mcp
+claude mcp add --transport stdio --scope user channel-brains -- \
+  uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.1" channel-brains-mcp
 ```
 
 Confirm it is available:
@@ -113,10 +182,36 @@ Add this to `~/.codex/config.toml`:
 ```toml
 [mcp_servers.channel-brains]
 command = "uvx"
-args = ["--from", "git+https://github.com/Pu11en/channel-brains@v0.1.0", "channel-brains-mcp"]
+args = ["--from", "git+https://github.com/Pu11en/channel-brains@v0.1.1", "channel-brains-mcp"]
 ```
 
 Restart Codex after saving the file.
+
+### ZCode
+
+Merge this server into `mcp.servers` in the user-level
+`~/.zcode/cli/config.json`, then reload ZCode:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "channel-brains": {
+        "command": "uvx",
+        "args": [
+          "--from",
+          "git+https://github.com/Pu11en/channel-brains@v0.1.1",
+          "channel-brains-mcp"
+        ]
+      }
+    }
+  }
+}
+```
+
+Preserve every existing server and unrelated setting in that file. ZCode also
+accepts the generic server definition through **Settings → MCP Servers → New MCP
+Server** with **User** scope and **stdio** type.
 
 ### OpenCode
 
@@ -131,7 +226,7 @@ Add a local MCP server entry to your OpenCode configuration:
       "command": [
         "uvx",
         "--from",
-        "git+https://github.com/Pu11en/channel-brains@v0.1.0",
+        "git+https://github.com/Pu11en/channel-brains@v0.1.1",
         "channel-brains-mcp"
       ],
       "enabled": true
@@ -151,11 +246,29 @@ uv run pytest
 uv build
 ```
 
-The test suite is offline except for the deliberately separate manual live YouTube smoke test.
+The default test suite is fully offline. The manual live release gate exercises a real
+channel through caption ingestion and timestamped local search:
+
+```bash
+uv run pytest -m live tests/test_live_youtube.py
+```
+
+Override the default channel when needed:
+
+```bash
+CHANNEL_BRAINS_LIVE_CHANNEL=https://www.youtube.com/@OpenAI uv run pytest -m live tests/test_live_youtube.py
+```
+
+YouTube requests are paced. HTTP 429 responses receive bounded retries and then pause
+the brain without losing completed work. Call `create_brain` again later with the same
+channel URL to resume.
 
 ## Limitations
 
 - Public YouTube captions can be unavailable, expired, restricted, or rate-limited.
+  No local client can guarantee that an external YouTube request succeeds 100% of the
+  time; Channel Brains guarantees bounded behavior, resumable progress, and explicit
+  status when YouTube refuses a request.
 - Search is lexical SQLite FTS5 search, not semantic search or an answer-generation system.
 - The server indexes captions only. It does not download videos, reuse video footage, or create a knowledge graph.
 - A channel can contain many videos. The first local ingestion may take time.

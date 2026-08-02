@@ -65,3 +65,12 @@ def test_reads_all_lazy_entries_before_selecting_and_deduplicates_video_ids() ->
     assert discovered_count == 2
     assert method == "view_count"
     assert [row["video_id"] for row in selected] == ["two", "one"]
+
+
+def test_missing_listing_url_uses_canonical_watch_url_without_redirect() -> None:
+    selected, _, _ = select_channel_candidates(
+        [{"id": "abc123xyz00", "title": "Video", "view_count": 1}],
+        max_videos=1,
+    )
+
+    assert selected[0]["webpage_url"] == "https://www.youtube.com/watch?v=abc123xyz00"
