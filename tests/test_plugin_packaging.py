@@ -81,6 +81,9 @@ def test_usage_skill_names_the_complete_tool_contract() -> None:
     assert RELEASE_SOURCE in skill
     assert "same-session bridge" in skill
     assert "wait_until_terminal=true" in skill
+    assert "monitoring_required=true" in skill
+    assert "mandatory for every explicit indexing request" in skill
+    assert "do not send a queued-status answer" in skill
     assert "Never create a client automation" in skill
 
 
@@ -121,6 +124,8 @@ def test_agent_install_uses_automatic_client_activation_commands() -> None:
     assert f"uvx --from {RELEASE_SOURCE} channel-brains <operation>" in runbook
     assert "use the same-session bridge" in runbook.lower()
     assert "--wait-until-terminal" in runbook
+    assert "After every successful explicit indexing request" in runbook
+    assert "do not reply with a queued status" in runbook
     assert "scheduled task" in runbook
 
 

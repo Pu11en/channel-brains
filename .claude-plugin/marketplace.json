@@ -9,7 +9,7 @@
       "name": "channel-brains",
       "source": "./plugins/channel-brains",
       "description": "Index and search public YouTube channel captions with timestamp citations.",
-      "version": "0.1.3"
+      "version": "0.1.4"
     }
   ]
 }

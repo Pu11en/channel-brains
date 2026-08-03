@@ -4,7 +4,7 @@
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/Pu11en/channel-brains@v0.1.3",
+        "git+https://github.com/Pu11en/channel-brains@v0.1.4",
         "channel-brains-mcp"
       ]
     }
