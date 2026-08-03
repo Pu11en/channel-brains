@@ -1,4 +1,4 @@
 interface:
   display_name: "Channel Brains"
-  short_description: "Index and search YouTube channel captions"
-  default_prompt: "Use $channel-brains to index a YouTube channel and search its timestamped captions."
+  short_description: "Index, monitor, and search YouTube captions"
+  default_prompt: "Use $channel-brains to index a YouTube channel, monitor completion, and search its timestamped captions."

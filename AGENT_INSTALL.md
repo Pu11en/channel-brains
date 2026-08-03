@@ -54,7 +54,7 @@ use the absolute `uvx` path in a manual MCP definition.
 Before registering anything, run the offline release check:
 
 ```text
-uvx --from git+https://github.com/Pu11en/channel-brains@v0.1.2 channel-brains-mcp --check
+uvx --from git+https://github.com/Pu11en/channel-brains@v0.1.3 channel-brains-mcp --check
 ```
 
 Continue only when it exits successfully with `"status":"ok"`,
@@ -68,14 +68,14 @@ through the shell instead of asking the user to restart, reload, open Settings,
 or create a new task:
 
 ```text
-uvx --from git+https://github.com/Pu11en/channel-brains@v0.1.2 channel-brains <operation> [arguments]
+uvx --from git+https://github.com/Pu11en/channel-brains@v0.1.3 channel-brains <operation> [arguments]
 ```
 
 The six bridge operations are:
 
 ```text
 channel-brains create_brain --channel-url URL [--max-videos 50] [--language en]
-channel-brains get_brain_status [--brain-id ID]
+channel-brains get_brain_status [--brain-id ID] [--wait-until-terminal]
 channel-brains list_brain_videos --brain-id ID [--offset 0] [--limit 20]
 channel-brains search_brain --query TEXT [--brain-id ID] [--limit 8]
 channel-brains get_video_transcript --brain-id ID --video-id ID [--offset 0] [--limit 50]
@@ -88,6 +88,20 @@ worker, so ingestion continues after the bridge command exits. Apply the same
 consent, polling, citation, untrusted-caption, and deletion rules as the MCP
 tools. Never use the bridge merely because a channel URL appears; the user must
 explicitly ask to index it.
+
+If the user says “let me know when it is done,” “monitor this,” “watch this,” or
+equivalent, keep the current turn active and make Channel Brains own the wait:
+
+```text
+channel-brains get_brain_status --brain-id ID --wait-until-terminal
+```
+
+Use the full pinned bridge prefix above. Do not create a client automation,
+scheduled task, heartbeat, or task-level polling loop. The command reads only
+local SQLite state, reports progress when the client supports it, and returns
+once the brain is `ready`, `paused`, or `failed`, or after its bounded timeout.
+Indexing itself remains detached and continues if the client closes, but no
+local plugin can post into a conversation that is no longer open.
 
 ## ZCode plugin
 
@@ -158,7 +172,7 @@ Until Channel Brains is merged into the Nous-reviewed Hermes MCP catalog, use
 Hermes's native MCP registration command:
 
 ```text
-hermes mcp add channel-brains --command uvx --connect-timeout 60 --args --from git+https://github.com/Pu11en/channel-brains@v0.1.2 channel-brains-mcp
+hermes mcp add channel-brains --command uvx --connect-timeout 60 --args --from git+https://github.com/Pu11en/channel-brains@v0.1.3 channel-brains-mcp
 ```
 
 Hermes asks whether to enable all discovered tools. The agent must accept the
@@ -205,3 +219,9 @@ Only say “Channel Brains is installed and ready” for the connected-and-ready
 state. For bridge-ready state, say “Channel Brains is installed and usable in
 this task through its same-session bridge.” Then ask which YouTube channel the
 user wants to index.
+
+A channel URL sent directly in response to that question is explicit indexing
+consent. Do not repeat the question. Do not mention stale Channel Brains copies
+in another client's cache unless they prevent the current installation. Say
+that six tools were discovered or that six bridge operations are available;
+never claim all six operations were executed unless they actually were.

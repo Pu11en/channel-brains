@@ -87,7 +87,7 @@ task remains immediately usable through the same-session bridge.
 ### Hermes Agent
 
 ```bash
-hermes mcp add channel-brains --command uvx --connect-timeout 60 --args --from git+https://github.com/Pu11en/channel-brains@v0.1.2 channel-brains-mcp
+hermes mcp add channel-brains --command uvx --connect-timeout 60 --args --from git+https://github.com/Pu11en/channel-brains@v0.1.3 channel-brains-mcp
 ```
 
 The installing AI accepts Hermes's default **enable all six tools** prompt and
@@ -104,12 +104,24 @@ six operation names through this pinned local command until native MCP tools are
 available:
 
 ```bash
-uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.2" channel-brains get_brain_status
+uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.3" channel-brains get_brain_status
 ```
 
 `create_brain` starts a detached local worker, so indexing continues after the
 one-shot command returns. This bridge is for agent continuity, not a second
 product the user must learn; native plugin tools remain the preferred interface.
+
+When the user asks to be notified at completion, the AI makes one plugin-owned
+wait instead of creating a scheduled task:
+
+```bash
+uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.3" channel-brains \
+  get_brain_status --brain-id BRAIN_ID --wait-until-terminal
+```
+
+The process watches local SQLite state and returns at `ready`, `paused`,
+`failed`, or timeout. Indexing survives a closed client, but notification in the
+conversation requires that this wait call remain active.
 
 ## Manual install
 
@@ -118,13 +130,13 @@ Requires [uv](https://docs.astral.sh/uv/).
 MCP clients launch the pinned production release with:
 
 ```bash
-uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.2" channel-brains-mcp
+uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.3" channel-brains-mcp
 ```
 
 Verify the installation without starting the MCP server or contacting YouTube:
 
 ```bash
-uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.2" channel-brains-mcp --check
+uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.3" channel-brains-mcp --check
 ```
 
 A successful check prints one JSON object with `"status": "ok"`, `"transport":
@@ -154,7 +166,7 @@ generic server definition used by that flow is:
   "command": "uvx",
   "args": [
     "--from",
-    "git+https://github.com/Pu11en/channel-brains@v0.1.2",
+    "git+https://github.com/Pu11en/channel-brains@v0.1.3",
     "channel-brains-mcp"
   ]
 }
@@ -167,7 +179,8 @@ the pinned package and can be slower than later starts.
 
 1. Add the server to an MCP client using one of the configurations below.
 2. Call `create_brain` with a supported YouTube channel URL, such as `https://www.youtube.com/@OpenAI`.
-3. Poll `get_brain_status` until the brain is `ready`, `paused`, or `failed`.
+3. When asked to notify at completion, call `get_brain_status` once with
+   `wait_until_terminal=true`; otherwise take status snapshots only on request.
 4. Use `search_brain` to retrieve timestamped caption matches.
 
 The initial ingestion scans the complete channel listing so it can select up to 50 videos by view count. Caption availability and YouTube rate limits determine how much can be indexed.
@@ -179,7 +192,7 @@ Channel Brains exposes exactly these six tools:
 | Tool | Purpose |
 | --- | --- |
 | `create_brain` | Validate a channel URL, persist a brain, and start local ingestion. |
-| `get_brain_status` | Read progress, counts, selection method, and errors without network access. |
+| `get_brain_status` | Read a snapshot or wait locally for completion, with progress and no YouTube requests. |
 | `list_brain_videos` | Page through indexed, skipped, pending, and failed video records. |
 | `search_brain` | Search local FTS5 caption chunks and return timestamped YouTube citations. |
 | `get_video_transcript` | Page through stored caption chunks for one indexed video. |
@@ -196,7 +209,7 @@ By default, Channel Brains stores its SQLite database and lock file in the platf
 Set `CHANNEL_BRAINS_HOME` before launching the MCP server to use another location:
 
 ```bash
-CHANNEL_BRAINS_HOME=/path/to/channel-brains-data uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.2" channel-brains-mcp
+CHANNEL_BRAINS_HOME=/path/to/channel-brains-data uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.3" channel-brains-mcp
 ```
 
 Captions and search indexes stay on the local machine. The only network requests are public YouTube requests made by `yt-dlp` and caption URL retrieval during ingestion.
@@ -238,7 +251,7 @@ mcp_servers:
     command: uvx
     args:
       - --from
-      - git+https://github.com/Pu11en/channel-brains@v0.1.2
+      - git+https://github.com/Pu11en/channel-brains@v0.1.3
       - channel-brains-mcp
     timeout: 120
     connect_timeout: 60
@@ -252,7 +265,7 @@ Register it at user scope:
 
 ```bash
 claude mcp add --transport stdio --scope user channel-brains -- \
-  uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.2" channel-brains-mcp
+  uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.3" channel-brains-mcp
 ```
 
 Confirm it is available:
@@ -268,7 +281,7 @@ Add this to `~/.codex/config.toml`:
 ```toml
 [mcp_servers.channel-brains]
 command = "uvx"
-args = ["--from", "git+https://github.com/Pu11en/channel-brains@v0.1.2", "channel-brains-mcp"]
+args = ["--from", "git+https://github.com/Pu11en/channel-brains@v0.1.3", "channel-brains-mcp"]
 ```
 
 Open a new Codex task after saving the file.
@@ -286,7 +299,7 @@ Merge this server into `mcp.servers` in the user-level
         "command": "uvx",
         "args": [
           "--from",
-          "git+https://github.com/Pu11en/channel-brains@v0.1.2",
+          "git+https://github.com/Pu11en/channel-brains@v0.1.3",
           "channel-brains-mcp"
         ]
       }
@@ -312,7 +325,7 @@ Add a local MCP server entry to your OpenCode configuration:
       "command": [
         "uvx",
         "--from",
-        "git+https://github.com/Pu11en/channel-brains@v0.1.2",
+        "git+https://github.com/Pu11en/channel-brains@v0.1.3",
         "channel-brains-mcp"
       ],
       "enabled": true

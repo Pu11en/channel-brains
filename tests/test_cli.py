@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from channel_brains_mcp import cli
+from channel_brains_mcp.db import Repository, initialize_database
 from channel_brains_mcp.server import TOOL_NAMES
 
 
@@ -42,6 +43,7 @@ async def test_valid_create_returns_mcp_shape_and_starts_detached_worker(
 
     assert output["status"] == "queued"
     assert output["queued"] is True
+    assert "scheduled task" in output["monitoring_instruction"]
     assert started == [output["brain_id"]]
 
 
@@ -111,6 +113,46 @@ def test_worker_starter_detaches_with_the_current_python_environment(
     else:
         assert options["start_new_session"] is True
     assert (tmp_path / "worker.log").exists()
+
+
+def test_status_bridge_owns_waiting_until_a_terminal_state(tmp_path: Path) -> None:
+    db_path = tmp_path / "channel_brains.sqlite3"
+    initialize_database(db_path)
+    repo = Repository(db_path)
+    brain_id = "a0b1c2d3e4f5"
+    repo.create_brain(
+        brain_id,
+        "https://www.youtube.com/@one",
+        "https://www.youtube.com/@one",
+        None,
+        None,
+        "en",
+        1,
+    )
+    repo.set_brain(brain_id, status="ready")
+    env = os.environ.copy()
+    env["CHANNEL_BRAINS_HOME"] = str(tmp_path)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "channel_brains_mcp.cli",
+            "get_brain_status",
+            "--brain-id",
+            brain_id,
+            "--wait-until-terminal",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+    output = json.loads(result.stdout)
+    assert output["waited"] is True
+    assert output["terminal"] is True
+    assert output["brains"][0]["status"] == "ready"
 
 
 def test_delete_bridge_keeps_confirmation_default_false(tmp_path: Path) -> None:

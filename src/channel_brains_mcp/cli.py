@@ -15,7 +15,12 @@ import anyio
 from channel_brains_mcp.config import VERSION, get_data_dir, get_paths
 from channel_brains_mcp.db import Repository
 from channel_brains_mcp.jobs import JobManager
-from channel_brains_mcp.server import build_server, configure_logging_to_stderr
+from channel_brains_mcp.server import (
+    DEFAULT_MONITOR_POLL_SECONDS,
+    DEFAULT_MONITOR_TIMEOUT_SECONDS,
+    build_server,
+    configure_logging_to_stderr,
+)
 from channel_brains_mcp.youtube import YoutubeClient
 
 WorkerStarter = Callable[[str], None]
@@ -69,7 +74,14 @@ def _arguments(namespace: argparse.Namespace) -> dict[str, object]:
             "language": namespace.language,
         }
     if namespace.tool == "get_brain_status":
-        return {"brain_id": namespace.brain_id} if namespace.brain_id else {}
+        arguments: dict[str, object] = {
+            "wait_until_terminal": namespace.wait_until_terminal,
+            "timeout_seconds": namespace.timeout_seconds,
+            "poll_interval_seconds": namespace.poll_interval_seconds,
+        }
+        if namespace.brain_id:
+            arguments["brain_id"] = namespace.brain_id
+        return arguments
     if namespace.tool == "list_brain_videos":
         return {
             "brain_id": namespace.brain_id,
@@ -139,6 +151,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     status = commands.add_parser("get_brain_status", help="read one or all brain statuses")
     status.add_argument("--brain-id")
+    status.add_argument(
+        "--wait-until-terminal",
+        action="store_true",
+        help="wait locally until the brain is ready, paused, failed, or times out",
+    )
+    status.add_argument(
+        "--timeout-seconds", type=int, default=DEFAULT_MONITOR_TIMEOUT_SECONDS
+    )
+    status.add_argument(
+        "--poll-interval-seconds", type=int, default=DEFAULT_MONITOR_POLL_SECONDS
+    )
 
     videos = commands.add_parser("list_brain_videos", help="list videos for a brain")
     videos.add_argument("--brain-id", required=True)

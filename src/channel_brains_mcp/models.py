@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class CreateBrainResult(BaseModel):
@@ -15,6 +15,11 @@ class CreateBrainResult(BaseModel):
     language: str
     queued: bool
     do_not_poll_automatically: bool = True
+    monitoring_instruction: str = (
+        "If the user asks to be notified when indexing finishes, call "
+        "get_brain_status with wait_until_terminal=true. Do not create an "
+        "external scheduled task or heartbeat."
+    )
     message: str
 
 
@@ -45,6 +50,9 @@ class BrainStatusResult(BaseModel):
 
     brains: list[BrainStatus]
     count: int
+    waited: bool = Field(default=False, exclude_if=lambda value: not value)
+    terminal: bool = Field(default=False, exclude_if=lambda value: not value)
+    timed_out: bool = Field(default=False, exclude_if=lambda value: not value)
 
 
 class VideoSummary(BaseModel):
