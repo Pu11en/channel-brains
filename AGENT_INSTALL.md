@@ -137,14 +137,26 @@ installation dependency.
 
 ## Claude Code plugin
 
-Run:
+Read `claude plugin marketplace list`. If the `channel-brains` marketplace is
+already configured, refresh it; otherwise add it:
+
+```text
+claude plugin marketplace update channel-brains
+```
 
 ```text
 claude plugin marketplace add Pu11en/channel-brains
-claude plugin install channel-brains@channel-brains --scope user
 ```
 
-Confirm the plugin is installed and enabled with `claude plugin list`. If the
+Then read `claude plugin list --json`. Install a missing plugin, or update an
+existing one:
+
+```text
+claude plugin install channel-brains@channel-brains --scope user
+claude plugin update channel-brains@channel-brains --scope user
+```
+
+Confirm v0.1.3 is installed and enabled with `claude plugin list --json`. If the
 active Claude Code runtime permits the agent to invoke `/reload-plugins`, do so
 and inspect `/mcp` for all six tools. Otherwise, do not make the user type a
 slash command: use the same-session bridge and continue in the current task.
@@ -152,19 +164,30 @@ The native plugin will load automatically in future Claude Code sessions.
 
 ## Codex plugin
 
-Run:
+Read `codex plugin marketplace list --json`. If the `channel-brains`
+marketplace is already configured, refresh its Git snapshot; otherwise add it:
 
 ```text
-codex plugin marketplace add Pu11en/channel-brains
+codex plugin marketplace upgrade channel-brains --json
+```
+
+```text
+codex plugin marketplace add Pu11en/channel-brains --json
+```
+
+Then install or update the plugin from the refreshed snapshot:
+
+```text
 codex plugin add channel-brains@channel-brains
 codex plugin list
 ```
 
-Codex freezes a task's tool inventory. Confirm `codex plugin list` reports the
-plugin installed and enabled, then use the same-session bridge in the current
-task. Do not ask the user to restart the application or open a new task merely
-to continue. The native plugin and all six MCP tools load automatically in
-future Codex tasks.
+Codex `marketplace add` is idempotent but does not refresh an existing snapshot,
+so never use it as a substitute for `marketplace upgrade`. Confirm
+`codex plugin list` reports v0.1.3 installed and enabled, then use the
+same-session bridge in the current task. Do not ask the user to restart the
+application or open a new task merely to continue. The native plugin and all
+six MCP tools load automatically in future Codex tasks.
 
 ## Hermes Agent
 
@@ -175,11 +198,13 @@ Hermes's native MCP registration command:
 hermes mcp add channel-brains --command uvx --connect-timeout 60 --args --from git+https://github.com/Pu11en/channel-brains@v0.1.3 channel-brains-mcp
 ```
 
-Hermes asks whether to enable all discovered tools. The agent must accept the
-default **Yes** itself by sending an empty line to the controlled terminal; do
-not hand this prompt to the user. Then run `hermes mcp test channel-brains` and
-require `Tools discovered: 6`. If the agent can invoke `/reload-mcp`, do so and
-require the six tools with the `mcp_channel_brains_` prefix. Otherwise use the
+If Hermes reports that `channel-brains` already exists, the agent must answer
+**Yes** to overwrite it with the pinned v0.1.3 definition. Hermes then asks
+whether to enable all discovered tools; accept the default **Yes** by sending an
+empty line. Handle both prompts in the controlled terminal and do not hand them
+to the user. Then run `hermes mcp test channel-brains` and require
+`Tools discovered: 6`. If the agent can invoke `/reload-mcp`, do so and require
+the six tools with the `mcp_channel_brains_` prefix. Otherwise use the
 same-session bridge rather than asking the user to reload. A candidate upstream
 catalog manifest is kept in `integrations/hermes/manifest.yaml`; once accepted
 upstream, prefer:

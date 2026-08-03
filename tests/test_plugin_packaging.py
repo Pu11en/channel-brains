@@ -99,15 +99,19 @@ def test_hermes_candidate_manifest_uses_the_same_release_and_tools() -> None:
 def test_agent_install_uses_automatic_client_activation_commands() -> None:
     runbook = (ROOT / "AGENT_INSTALL.md").read_text(encoding="utf-8")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    normalized_runbook = " ".join(runbook.split())
 
     assert "Get this on yourself: https://github.com/Pu11en/channel-brains" in readme
     assert "get this on yourself" in runbook.lower()
     assert "Do not ask the user to" in runbook
     assert "claude plugin install channel-brains@channel-brains" in runbook
+    assert "claude plugin marketplace update channel-brains" in runbook
+    assert "claude plugin update channel-brains@channel-brains" in runbook
     assert "codex plugin add channel-brains@channel-brains" in runbook
+    assert "codex plugin marketplace upgrade channel-brains" in runbook
     assert "hermes mcp add channel-brains" in runbook
     assert "hermes mcp test channel-brains" in runbook
-    assert "sending an empty line" in runbook
+    assert "sending an empty line" in normalized_runbook
     assert "python scripts/install_zcode_plugin.py" in runbook
     assert "plugins.dirs" in runbook
     assert "Never ask for an application" in runbook
