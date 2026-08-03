@@ -70,6 +70,10 @@ claude plugin marketplace add Pu11en/channel-brains
 claude plugin install channel-brains@channel-brains --scope user
 ```
 
+For an existing installation, run `claude plugin marketplace update
+channel-brains` followed by `claude plugin update
+channel-brains@channel-brains --scope user`.
+
 Claude Code can activate it with `/reload-plugins`. If the agent cannot invoke
 that command itself, it continues through the same-session bridge; the user does
 not have to reload anything.
@@ -80,6 +84,10 @@ not have to reload anything.
 codex plugin marketplace add Pu11en/channel-brains
 codex plugin add channel-brains@channel-brains
 ```
+
+For an existing installation, run `codex plugin marketplace upgrade
+channel-brains` before repeating `codex plugin add`. Re-adding a configured
+marketplace does not refresh its snapshot.
 
 The native tools appear automatically in future Codex tasks. The installation
 task remains immediately usable through the same-session bridge.
