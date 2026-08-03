@@ -8,11 +8,13 @@ import pytest
 
 from channel_brains_mcp.db import Repository, initialize_database
 from channel_brains_mcp.jobs import JobManager
+from channel_brains_mcp.models import BrainStatus
 from channel_brains_mcp.server import (
     TOOL_NAMES,
     _tokenize_query,
     _validate_brain_id,
     _validate_language,
+    _wait_for_terminal_status,
     build_server,
 )
 
@@ -72,6 +74,12 @@ async def test_all_six_tools_publish_concrete_input_and_output_schemas(
         assert tool.output_schema["type"] == "object"
         assert tool.output_schema.get("additionalProperties") is False
 
+    status_tool = next(tool for tool in tools if tool.name == "get_brain_status")
+    properties = status_tool.input_schema["properties"]
+    assert properties["wait_until_terminal"]["default"] is False
+    assert properties["timeout_seconds"]["minimum"] == 1
+    assert properties["poll_interval_seconds"]["minimum"] == 1
+
 
 @pytest.mark.asyncio
 async def test_status_and_search_do_not_call_youtube(
@@ -85,6 +93,81 @@ async def test_status_and_search_do_not_call_youtube(
 
     search = await server.call_tool("search_brain", {"query": "pricing AI products"})
     assert search.structured_content["results"] == []
+
+
+@pytest.mark.asyncio
+async def test_plugin_owned_monitor_waits_until_local_status_is_terminal(
+    dependencies: tuple[Repository, JobManager],
+) -> None:
+    repo, _ = dependencies
+    brain_id = "a0b1c2d3e4f5"
+    repo.create_brain(
+        brain_id,
+        "https://www.youtube.com/@one",
+        "https://www.youtube.com/@one",
+        None,
+        None,
+        "en",
+        1,
+    )
+    reported: list[str] = []
+
+    async def report(brain: BrainStatus) -> None:
+        reported.append(brain.status)
+
+    async def finish_ingestion(_: float) -> None:
+        repo.set_brain(brain_id, status="ready")
+
+    result = await _wait_for_terminal_status(
+        repo,
+        brain_id,
+        timeout_seconds=30,
+        poll_interval_seconds=5,
+        report_progress=report,
+        sleep=finish_ingestion,
+        clock=lambda: 0,
+    )
+
+    assert result.waited is True
+    assert result.terminal is True
+    assert result.timed_out is False
+    assert result.brains[0].status == "ready"
+    assert reported == ["queued", "ready"]
+
+
+@pytest.mark.asyncio
+async def test_plugin_owned_monitor_returns_current_status_at_timeout(
+    dependencies: tuple[Repository, JobManager],
+) -> None:
+    repo, _ = dependencies
+    brain_id = "a0b1c2d3e4f5"
+    repo.create_brain(
+        brain_id,
+        "https://www.youtube.com/@one",
+        "https://www.youtube.com/@one",
+        None,
+        None,
+        "en",
+        1,
+    )
+    times = iter((0.0, 0.0, 1.0))
+
+    async def no_sleep(_: float) -> None:
+        return None
+
+    result = await _wait_for_terminal_status(
+        repo,
+        brain_id,
+        timeout_seconds=1,
+        poll_interval_seconds=1,
+        sleep=no_sleep,
+        clock=lambda: next(times),
+    )
+
+    assert result.waited is True
+    assert result.terminal is False
+    assert result.timed_out is True
+    assert result.brains[0].status == "queued"
 
 
 @pytest.mark.asyncio

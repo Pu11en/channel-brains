@@ -80,6 +80,8 @@ def test_usage_skill_names_the_complete_tool_contract() -> None:
     assert "no separate global `yt-dlp`" in skill
     assert RELEASE_SOURCE in skill
     assert "same-session bridge" in skill
+    assert "wait_until_terminal=true" in skill
+    assert "Never create a client automation" in skill
 
 
 def test_hermes_candidate_manifest_uses_the_same_release_and_tools() -> None:
@@ -114,6 +116,8 @@ def test_agent_install_uses_automatic_client_activation_commands() -> None:
     assert "does not need a separate global `yt-dlp`" in runbook
     assert f"uvx --from {RELEASE_SOURCE} channel-brains <operation>" in runbook
     assert "use the same-session bridge" in runbook.lower()
+    assert "--wait-until-terminal" in runbook
+    assert "scheduled task" in runbook
 
 
 def test_zcode_installer_preserves_config_and_is_idempotent(tmp_path: Path) -> None:
