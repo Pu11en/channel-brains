@@ -43,6 +43,9 @@ async def test_valid_create_returns_mcp_shape_and_starts_detached_worker(
 
     assert output["status"] == "queued"
     assert output["queued"] is True
+    assert output["monitoring_required"] is True
+    assert "REQUIRED NEXT ACTION" in output["monitoring_instruction"]
+    assert "Do not reply to the user yet" in output["monitoring_instruction"]
     assert "scheduled task" in output["monitoring_instruction"]
     assert started == [output["brain_id"]]
 
@@ -62,6 +65,8 @@ async def test_invalid_create_never_starts_worker(
 
     assert output["status"] == "error"
     assert output["queued"] is False
+    assert output["monitoring_required"] is False
+    assert "monitoring_instruction" not in output
     assert started == []
 
 

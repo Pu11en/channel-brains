@@ -80,6 +80,9 @@ async def test_all_six_tools_publish_concrete_input_and_output_schemas(
     assert properties["timeout_seconds"]["minimum"] == 1
     assert properties["poll_interval_seconds"]["minimum"] == 1
 
+    create_tool = next(tool for tool in tools if tool.name == "create_brain")
+    assert "immediately call get_brain_status" in create_tool.description
+
 
 @pytest.mark.asyncio
 async def test_status_and_search_do_not_call_youtube(
@@ -180,6 +183,8 @@ async def test_invalid_create_makes_no_database_row_and_enqueues_no_work(
     result = await server.call_tool("create_brain", {"channel_url": "https://youtu.be/not-a-channel"})
 
     assert result.structured_content["status"] == "error"
+    assert result.structured_content["monitoring_required"] is False
+    assert "monitoring_instruction" not in result.structured_content
     assert repo.get_brain_status() == []
     assert not jobs.pending
 

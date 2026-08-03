@@ -14,11 +14,9 @@ class CreateBrainResult(BaseModel):
     max_videos: int
     language: str
     queued: bool
-    do_not_poll_automatically: bool = True
-    monitoring_instruction: str = (
-        "If the user asks to be notified when indexing finishes, call "
-        "get_brain_status with wait_until_terminal=true. Do not create an "
-        "external scheduled task or heartbeat."
+    monitoring_required: bool = False
+    monitoring_instruction: str | None = Field(
+        default=None, exclude_if=lambda value: value is None
     )
     message: str
 

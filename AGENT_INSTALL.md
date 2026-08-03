@@ -54,7 +54,7 @@ use the absolute `uvx` path in a manual MCP definition.
 Before registering anything, run the offline release check:
 
 ```text
-uvx --from git+https://github.com/Pu11en/channel-brains@v0.1.3 channel-brains-mcp --check
+uvx --from git+https://github.com/Pu11en/channel-brains@v0.1.4 channel-brains-mcp --check
 ```
 
 Continue only when it exits successfully with `"status":"ok"`,
@@ -68,7 +68,7 @@ through the shell instead of asking the user to restart, reload, open Settings,
 or create a new task:
 
 ```text
-uvx --from git+https://github.com/Pu11en/channel-brains@v0.1.3 channel-brains <operation> [arguments]
+uvx --from git+https://github.com/Pu11en/channel-brains@v0.1.4 channel-brains <operation> [arguments]
 ```
 
 The six bridge operations are:
@@ -89,14 +89,16 @@ consent, polling, citation, untrusted-caption, and deletion rules as the MCP
 tools. Never use the bridge merely because a channel URL appears; the user must
 explicitly ask to index it.
 
-If the user says “let me know when it is done,” “monitor this,” “watch this,” or
-equivalent, keep the current turn active and make Channel Brains own the wait:
+After every successful explicit indexing request, keep the current turn active
+and make Channel Brains own the wait. Do this automatically; the user does not
+need to separately say “let me know,” “monitor,” “watch,” or “wait”:
 
 ```text
 channel-brains get_brain_status --brain-id ID --wait-until-terminal
 ```
 
-Use the full pinned bridge prefix above. Do not create a client automation,
+Run this immediately after `create_brain`; do not reply with a queued status or
+ask the user to check progress. Use the full pinned bridge prefix above. Do not create a client automation,
 scheduled task, heartbeat, or task-level polling loop. The command reads only
 local SQLite state, reports progress when the client supports it, and returns
 once the brain is `ready`, `paused`, or `failed`, or after its bounded timeout.
@@ -156,7 +158,7 @@ claude plugin install channel-brains@channel-brains --scope user
 claude plugin update channel-brains@channel-brains --scope user
 ```
 
-Confirm v0.1.3 is installed and enabled with `claude plugin list --json`. If the
+Confirm v0.1.4 is installed and enabled with `claude plugin list --json`. If the
 active Claude Code runtime permits the agent to invoke `/reload-plugins`, do so
 and inspect `/mcp` for all six tools. Otherwise, do not make the user type a
 slash command: use the same-session bridge and continue in the current task.
@@ -184,7 +186,7 @@ codex plugin list
 
 Codex `marketplace add` is idempotent but does not refresh an existing snapshot,
 so never use it as a substitute for `marketplace upgrade`. Confirm
-`codex plugin list` reports v0.1.3 installed and enabled, then use the
+`codex plugin list` reports v0.1.4 installed and enabled, then use the
 same-session bridge in the current task. Do not ask the user to restart the
 application or open a new task merely to continue. The native plugin and all
 six MCP tools load automatically in future Codex tasks.
@@ -195,11 +197,11 @@ Until Channel Brains is merged into the Nous-reviewed Hermes MCP catalog, use
 Hermes's native MCP registration command:
 
 ```text
-hermes mcp add channel-brains --command uvx --connect-timeout 60 --args --from git+https://github.com/Pu11en/channel-brains@v0.1.3 channel-brains-mcp
+hermes mcp add channel-brains --command uvx --connect-timeout 60 --args --from git+https://github.com/Pu11en/channel-brains@v0.1.4 channel-brains-mcp
 ```
 
 If Hermes reports that `channel-brains` already exists, the agent must answer
-**Yes** to overwrite it with the pinned v0.1.3 definition. Hermes then asks
+**Yes** to overwrite it with the pinned v0.1.4 definition. Hermes then asks
 whether to enable all discovered tools; accept the default **Yes** by sending an
 empty line. Handle both prompts in the controlled terminal and do not hand them
 to the user. Then run `hermes mcp test channel-brains` and require

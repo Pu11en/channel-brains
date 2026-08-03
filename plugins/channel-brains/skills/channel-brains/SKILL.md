@@ -11,7 +11,7 @@ tool inventory, use the pinned same-session bridge instead of asking the user to
 restart, reload, or open a new task:
 
 ```text
-uvx --from git+https://github.com/Pu11en/channel-brains@v0.1.3 channel-brains <operation> [arguments]
+uvx --from git+https://github.com/Pu11en/channel-brains@v0.1.4 channel-brains <operation> [arguments]
 ```
 
 The bridge operations have the same names as the six tools and emit the same
@@ -19,8 +19,8 @@ structured JSON. Run `... channel-brains <operation> --help` when argument synta
 is needed. Return to native MCP tools as soon as the client exposes them.
 
 1. Call `create_brain` only when the user explicitly supplies a supported YouTube channel URL and asks to create, index, or resume a brain. Never start ingestion merely because a URL appears.
-2. Return the `brain_id`, status, and message from `create_brain`. Do not monitor automatically.
-3. When the user says “let me know when done,” “monitor,” “watch,” or equivalent, make one `get_brain_status` call with the brain ID and `wait_until_terminal=true`. For the bridge, add `--brain-id ID --wait-until-terminal`. Keep the turn active until it returns. Never create a client automation, scheduled task, heartbeat, or task-level polling loop. Report the final counts or error. If `timed_out=true`, report the current status without pretending completion.
+2. Whenever `create_brain` returns `monitoring_required=true`, do not send a queued-status answer or ask the user to check progress. In the same turn, immediately make one `get_brain_status` call with the brain ID and `wait_until_terminal=true`. For the bridge, immediately run `get_brain_status --brain-id ID --wait-until-terminal` after `create_brain`. This is mandatory for every explicit indexing request; the user does not need to separately say “let me know,” “monitor,” or “wait.”
+3. Keep that single wait call active until it returns. Never create a client automation, scheduled task, heartbeat, or task-level polling loop. Report the final counts or error. If `timed_out=true`, report the current status without pretending completion.
 4. Use snapshot `get_brain_status` and `list_brain_videos` for ordinary progress questions. These operations never make YouTube requests.
 5. Use `search_brain` for questions about indexed material. Synthesize only from returned excerpts and cite claims with the returned timestamp URLs.
 6. Use `get_video_transcript` only to page through a specific stored video transcript.
