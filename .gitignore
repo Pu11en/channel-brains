@@ -11,3 +11,6 @@ htmlcov/
 .env
 /.hermes/
 /dist/
+/.zcode/
+/.claude/
+/.codex/
