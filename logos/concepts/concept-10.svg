@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="512" height="512" viewBox="0 0 512 512">
+  <title>Channel Brains — Night Signal</title>
+  <desc>A midnight video badge with an electric-lime brain; its central fissure widens into a right-facing play gesture.</desc>
+  <path fill="#18272B" d="M136 100 H376 C434 100 464 130 464 188 V324 C464 382 434 412 376 412 H136 C78 412 48 382 48 324 V188 C48 130 78 100 136 100 Z"/>
+  <path fill="#D5F56A" d="M256 164 C245 136 213 131 194 153 C170 150 151 167 151 190 C130 205 127 229 138 247 C123 269 133 294 153 304 C150 328 169 347 191 347 C200 369 222 378 241 364 C249 358 254 350 256 340 C258 350 263 358 271 364 C290 378 312 369 321 347 C343 347 362 328 359 304 C379 294 389 269 374 247 C385 229 382 205 361 190 C361 167 342 150 318 153 C299 131 267 136 256 164 Z"/>
+  <path fill="none" stroke="#18272B" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" d="M256 160 V215 M256 302 V313 M188 183 C179 201 187 221 210 221 M326 179 C339 196 330 211 312 211 M165 274 C188 265 207 283 203 303 M351 285 C333 282 320 293 315 314"/>
+  <path fill="#18272B" d="M251 208 Q245 204 245 213 V299 Q245 308 253 303 L315 263 Q326 256 315 249 Z"/>
+</svg>

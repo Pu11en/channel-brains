@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logos/final/png/mark-512.png" width="160" alt="Channel Brains logo">
+</p>
+
 # Channel Brains
 
 **Tell your AI to install it. It does.**
@@ -233,6 +237,18 @@ channel URL to resume.
 - Search is lexical SQLite FTS5 search, not semantic search or an answer-generation system.
 - The server indexes captions only. It does not download videos, reuse video footage, or create a knowledge graph.
 - A channel can contain many videos. The first local ingestion may take time.
+
+## Brand assets
+
+The brand mark is the red video badge with a white top-view brain ("Top Brain"). Files live in [`logos/final/`](logos/final/):
+
+- [`channel-brains-mark.svg`](logos/final/channel-brains-mark.svg) — primary mark (vector), with [`mark-white`](logos/final/channel-brains-mark-white.svg) and [`mark-mono`](logos/final/channel-brains-mark-mono.svg) variants
+- [`png/mark-512.png`](logos/final/png/mark-512.png) — raster marks from 512 px down to 16 px, plus [`favicon.ico`](logos/final/png/favicon.ico)
+- [`channel-brains-icon.svg`](logos/final/channel-brains-icon.svg) / [`png/icon-512.png`](logos/final/png/icon-512.png) — squircle app icon (also 192 px and 180 px apple-touch)
+- [`channel-brains-lockup.svg`](logos/final/channel-brains-lockup.svg) / [`png/lockup-1200.png`](logos/final/png/lockup-1200.png) — badge + "Channel Brains" wordmark lockup, with a [white version](logos/final/channel-brains-lockup-white.svg) for dark backgrounds
+- [`brand-sheet.png`](logos/final/brand-sheet.png) — one-image overview
+
+Concept history from the design rounds is kept under [`logos/concepts/`](logos/concepts/).
 
 ## License
 

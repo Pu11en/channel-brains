@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Channel Brains concept-15 "Classic Brain": true-red badge, white side-profile brain with cerebellum -->
+  <rect x="56" y="115" width="400" height="282" rx="76" fill="#FF0000"/>
+  <g>
+    <!-- brainstem -->
+    <path d="M 316 312 L 338 346" stroke="#FFFFFF" stroke-width="20" stroke-linecap="round" fill="none"/>
+    <!-- cerebellum -->
+    <path d="M 300 306 C 306 288 330 284 344 296 C 356 307 354 326 340 334 C 326 342 306 336 300 322 Z" fill="#FFFFFF"/>
+    <!-- main brain body -->
+    <path d="M 165 250
+             C 160 205 200 172 250 170
+             C 300 168 345 195 350 240
+             C 353 268 348 292 332 306
+             C 322 316 306 320 296 316
+             C 290 330 275 340 258 338
+             C 220 338 196 324 186 304
+             C 168 299 160 278 165 250 Z" fill="#FFFFFF"/>
+    <!-- bold fold cutouts (badge red showing through) -->
+    <g stroke="#FF0000" stroke-width="20" stroke-linecap="round" fill="none">
+      <path d="M 207 207 C 235 197 246 224 231 244"/>
+      <path d="M 277 187 C 306 192 311 220 291 238"/>
+      <path d="M 197 277 C 226 267 240 287 225 306"/>
+      <path d="M 262 252 C 287 247 296 272 279 290"/>
+      <path d="M 250 172 C 256 200 247 226 230 246"/>
+    </g>
+  </g>
+</svg>

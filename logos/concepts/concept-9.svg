@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="512" height="512" viewBox="0 0 512 512">
+  <title>Channel Brains — Squircle Icon</title>
+  <desc>A violet squircle with a white two-hemisphere brain and five broad folds, designed for an app icon or favicon.</desc>
+  <path fill="#7C5CD6" d="M184 52 H328 C424 52 460 88 460 184 V328 C460 424 424 460 328 460 H184 C88 460 52 424 52 328 V184 C52 88 88 52 184 52 Z"/>
+  <path fill="#FFFFFF" d="M256 145 C244 109 202 106 179 136 C150 134 130 154 130 179 C108 194 104 223 117 244 C101 269 112 300 135 310 C132 340 153 363 179 363 C188 388 217 399 239 383 C250 375 254 365 256 354 C258 365 262 375 273 383 C295 399 324 388 333 363 C359 363 380 340 377 310 C400 300 411 269 395 244 C408 223 404 194 382 179 C382 154 362 134 333 136 C310 106 268 109 256 145 Z"/>
+  <path fill="none" stroke="#7C5CD6" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" d="M256 145 V324 M171 173 C158 195 173 220 203 220 M341 173 C354 195 339 220 309 220 M144 273 C173 263 197 282 190 312 M368 273 C339 263 315 282 322 312"/>
+</svg>

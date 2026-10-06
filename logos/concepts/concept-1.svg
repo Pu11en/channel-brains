@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <g id="icon">
+    <!-- Deep indigo rounded tile -->
+    <rect width="512" height="512" rx="112" fill="#1E1B4B"/>
+    <!-- Play triangle, self-stroked for rounded corners -->
+    <path d="M172 114 L420 256 L172 398 Z" fill="#22D3EE" stroke="#22D3EE" stroke-width="14" stroke-linejoin="round"/>
+    <!-- Brain-fold gaps, drawn in tile color so they segment the triangle -->
+    <g fill="none" stroke="#1E1B4B" stroke-width="22" stroke-linecap="round">
+      <path d="M218 94 Q254 256 218 418"/>
+      <path d="M316 140 Q283 256 316 372"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="512" height="512" viewBox="0 0 512 512">
+  <title>Channel Brains — Classic Badge</title>
+  <desc>A deep crimson video badge with a white side-profile brain, five broad folds and a small brainstem.</desc>
+  <path fill="#B52246" d="M116 112 H396 C439 112 464 137 464 180 V332 C464 375 439 400 396 400 H116 C73 400 48 375 48 332 V180 C48 137 73 112 116 112 Z"/>
+  <path fill="#FFFFFF" d="M155 208 C148 184 165 164 187 164 C199 142 230 138 251 153 C275 139 305 150 314 173 C345 167 369 190 367 213 C390 229 391 257 375 275 C382 298 363 319 339 317 C322 336 293 336 279 322 C266 327 255 328 245 323 L249 345 Q251 355 240 355 H226 Q217 355 216 345 L213 330 C192 343 163 331 161 309 C137 307 121 286 127 265 C112 245 126 217 155 208 Z"/>
+  <path fill="none" stroke="#B52246" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" d="M188 187 C180 208 193 224 218 224 M257 177 C247 194 253 211 268 219 M322 197 C338 217 326 238 302 238 M353 273 H320 C296 273 284 288 290 307 M151 264 C173 253 198 266 198 286"/>
+</svg>

@@ -1,0 +1,12 @@
+Concept 4: valid SVG 1.1 structure; 1 solid color(s); one connected mark; bounds (76.12, 78.0, 435.88, 426.26).
+  512px: transparent corners; CairoSVG / Chromium geometry agrees within the 1px antialiased edge; mean RGB difference 0.055/255.
+  32px: transparent corners; CairoSVG / Chromium geometry agrees within the 1px antialiased edge; mean RGB difference 0.902/255.
+Concept 5: valid SVG 1.1 structure; 2 solid color(s); one connected mark; bounds (72.18, 72.0, 434.0, 435.51).
+  512px: transparent corners; CairoSVG / Chromium geometry agrees within the 1px antialiased edge; mean RGB difference 0.083/255.
+  32px: transparent corners; CairoSVG / Chromium geometry agrees within the 1px antialiased edge; mean RGB difference 1.118/255.
+Concept 6: valid SVG 1.1 structure; 1 solid color(s); one connected mark; bounds (89.0, 87.83, 422.0, 424.75).
+  512px: transparent corners; CairoSVG / Chromium geometry agrees within the 1px antialiased edge; mean RGB difference 0.063/255.
+  32px: transparent corners; CairoSVG / Chromium geometry agrees within the 1px antialiased edge; mean RGB difference 0.897/255.
+
+Repository checks: uv sync --extra dev --locked; uv run ruff check .; uv run pytest (115 passed, 1 deselected); uv build — all passed.
+SVG sources re-read; bounds, control coordinates, cutout containment, self-intersections, connectivity, transparency and minimum stroke width checked.

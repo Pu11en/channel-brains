@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="512" height="512" viewBox="0 0 512 512">
+  <title>Channel Brains — Neural Circuit</title>
+  <desc>An organic teal hemisphere shares its spine with an ochre circuit hemisphere whose connected nodes form a play triangle.</desc>
+  <g fill="none" stroke="#BD8746" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M244 110 H300 L348 158 V216 M244 402 H300 L348 354 V296"/>
+    <path d="M244 184 H294 L416 256 L294 328 H244"/>
+  </g>
+  <g fill="#BD8746">
+    <circle cx="348" cy="158" r="18"/>
+    <circle cx="348" cy="354" r="18"/>
+    <circle cx="416" cy="256" r="18"/>
+  </g>
+  <g fill="none" stroke="#278F80" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M244 112 C244 93 229 86 210 86 C181 86 161 106 157 131 C127 130 107 153 109 181 C83 199 80 231 96 254 C79 282 89 316 114 330 C110 360 132 385 158 386 C166 413 195 429 220 418 C235 412 244 402 244 384 Z"/>
+    <path d="M157 131 C151 159 166 180 194 180"/>
+    <path d="M96 254 H150 C176 254 190 270 190 294"/>
+    <path d="M244 336 H209 C182 336 161 355 158 386"/>
+  </g>
+</svg>
