@@ -9,40 +9,52 @@ PRIVACY_HTML = f"""<!DOCTYPE html>
 <style>body{{font-family:system-ui,sans-serif;max-width:720px;margin:2rem auto;padding:0 1rem;line-height:1.6}}h1{{font-size:1.5rem}}</style>
 </head><body>
 <h1>Channel Brains — Privacy Policy</h1>
-<p>Last updated: 2026-09-29</p>
+<p>Last updated: 2026-10-06</p>
 <p>Channel Brains is an MCP plugin that indexes the public captions of YouTube channels you
 choose so you can search them with timestamped results inside ChatGPT.</p>
 <h2>What we store</h2>
 <ul>
-<li><strong>Account identifier.</strong> When you connect Channel Brains, our identity provider
-(Auth0) shares a stable, opaque user ID with us. We never see or store your password; sign-in
-is handled entirely by the identity provider.</li>
-<li><strong>Channel and video metadata.</strong> The URLs of channels you index, and public
-metadata (titles, view counts, caption languages) for their videos.</li>
-<li><strong>Caption text.</strong> The publicly available caption text of videos in channels
-you index, stored so search works without re-contacting YouTube.</li>
-<li><strong>Operational records.</strong> Indexing status and error summaries so you can
-resume paused work.</li>
+<li><strong>Account identifier.</strong> When you connect Channel Brains, our sign-in provider
+(Auth0) gives us a stable, opaque user ID. We use it only to keep your data separate from
+other accounts. We never see your password.</li>
+<li><strong>Channel and video data.</strong> The URLs of channels you ask us to index, and
+public metadata for their videos (titles, view counts, upload dates, caption languages).</li>
+<li><strong>Caption text.</strong> The publicly available caption text of the indexed videos,
+stored so search works without contacting YouTube again.</li>
+<li><strong>Indexing records.</strong> Each brain's status, progress counts, error summaries,
+and the times it was created and last updated, so you can follow and resume indexing.</li>
 </ul>
+<h2>How we use it</h2>
+<p>Only to provide the service: indexing the channels you request, searching them when you
+ask, and showing indexing progress. We do not sell your data, use it for advertising, or use
+it to train AI models.</p>
 <h2>What we do not collect</h2>
-<p>We do not collect passwords, payment information, contacts, precise location, or the
-contents of your ChatGPT conversations. Your prompts and questions remain between you and
-ChatGPT; we only receive the tool calls ChatGPT makes (for example the search terms you ask
-to run against your indexed channels).</p>
+<p>We do not collect payment information, contacts, precise location, or the contents of your
+ChatGPT conversations. We receive only the tool calls ChatGPT makes, such as a channel URL or
+the search words you ask to run. Search words are used to answer that request and are not
+saved in your account's data.</p>
+<h2>Who receives data</h2>
+<ul>
+<li><strong>Auth0</strong> (sign-in provider) stores your sign-in details, such as your email
+address, under <a href="https://auth0.com/privacy">its own privacy policy</a>. Auth0 shares only
+the opaque user ID with us.</li>
+<li><strong>Railway</strong> (our hosting provider) runs the server and stores the data listed
+above. Like any web host, Railway processes network information such as IP addresses to
+deliver requests, and keeps short-lived server logs.</li>
+<li><strong>YouTube</strong> receives automated requests from our servers, sent through an
+internet connection we operate, to fetch public channel listings and captions. Your identity
+is never sent to YouTube.</li>
+</ul>
+<p>We do not share your data with anyone else, except if required by law.</p>
 <h2>Isolation</h2>
-<p>Each account's brains are stored in a separate, per-user database. Other users cannot
+<p>Each account's brains are stored in a separate, per-account database. Other users cannot
 list, read, search, or delete your data.</p>
 <h2>Retention and deletion</h2>
-<p>Data is kept until you delete it. Deleting a brain removes its videos and captions
-immediately. To delete everything associated with your account, email
-<a href="mailto:{SUPPORT_EMAIL}">{SUPPORT_EMAIL}</a> and we will remove your account's data
-within 30 days.</p>
-<h2>Third parties</h2>
-<ul>
-<li><strong>Auth0</strong> handles sign-in under its own privacy policy.</li>
-<li><strong>YouTube</strong> is contacted only to fetch public channel listings and captions,
-like a normal browser visit.</li>
-</ul>
+<p>Your data is kept until you delete it. Deleting a brain removes its videos and captions
+immediately. To delete everything tied to your account, email
+<a href="mailto:{SUPPORT_EMAIL}">{SUPPORT_EMAIL}</a>; we remove it within 30 days.</p>
+<h2>Children</h2>
+<p>Channel Brains is not directed at children under 13.</p>
 <h2>Contact</h2>
 <p>Questions: <a href="mailto:{SUPPORT_EMAIL}">{SUPPORT_EMAIL}</a></p>
 </body></html>"""
@@ -90,7 +102,7 @@ a{color:#0d9488}
 </style></head><body>
 <h1>Channel Brains <span class="badge">MCP plugin</span></h1>
 <p class="lead">Ask ChatGPT anything a YouTube channel has ever said — with timestamps.</p>
-<p>Channel Brains indexes the public captions of any YouTube channel you choose and turns them
+<p>Channel Brains indexes the public captions of YouTube channels you choose and turns them
 into searchable, timestamped evidence inside ChatGPT. Every answer cites the exact video and
 second it came from, so you can trust — and check — what the channel actually said.</p>
 <h2>How it works</h2>
@@ -103,6 +115,6 @@ second it came from, so you can trust — and check — what the channel actuall
 <p>Source and local-install instructions: <a href="https://github.com/Pu11en/channel-brains">github.com/Pu11en/channel-brains</a></p>
 <footer>
 <a href="/privacy">Privacy policy</a> · <a href="/terms">Terms of service</a> ·
-<a href="https://github.com/Pu11en/channel-brains/issues">Support</a>
+<a href="mailto:drewpullen2003@gmail.com">Support</a>
 </footer>
 </body></html>"""

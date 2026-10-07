@@ -459,7 +459,7 @@ def _request_failure_message(exc: BaseException, status_code: int | None) -> str
     if status_code is None and (
         "unreachable" in text or "timed out" in text or ("connection" in text and "refused" in text)
     ):
-        return "Cannot reach YouTube: network or configured proxy is unavailable"
+        return "Cannot reach YouTube right now. Try again later."
     if status_code is None and "timed out" in text:
         return "Cannot reach YouTube: request timed out"
     return f"YouTube request failed (HTTP {status_code})" if status_code else "YouTube request failed"

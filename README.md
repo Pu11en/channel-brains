@@ -114,7 +114,8 @@ in OpenAI's plugin directory.
 
 - It runs on our server, not your computer. You sign in with an account.
 - Each account keeps its own brains, up to 3. Other accounts cannot see them.
-- It has the same six tools plus `get_profile`, which returns your account ID.
+- It has the same tools except `get_video_transcript`, plus `get_profile`, which returns an
+  opaque account ID. Searches return short cited excerpts, not whole transcripts.
 - Privacy policy: https://channel-brains-production.up.railway.app/privacy
 - Terms: https://channel-brains-production.up.railway.app/terms
 
@@ -163,28 +164,11 @@ CHANNEL_BRAINS_HOME=/path/to/channel-brains-data uvx --from "git+https://github.
 Captions and search indexes stay on the local machine. The only network requests are
 public YouTube requests made by `yt-dlp` and caption URL retrieval during ingestion.
 
-### Persistent YouTube rate limits
+### YouTube rate limits
 
-Channel Brains first uses paced anonymous requests and bounded retries. If YouTube
-keeps returning HTTP 429 from your network, explicitly opt in to one of yt-dlp's
-authenticated cookie sources in the MCP server environment:
-
-```text
-CHANNEL_BRAINS_YOUTUBE_COOKIES_FROM_BROWSER=firefox
-```
-
-Or provide a Netscape-format cookie file:
-
-```text
-CHANNEL_BRAINS_YOUTUBE_COOKIES_FILE=/private/path/youtube-cookies.txt
-```
-
-Set only one cookie source. Browser cookies grant the server the same YouTube session
-access as that browser; keep cookie files private and never commit them. A network
-proxy can be configured separately with `CHANNEL_BRAINS_YOUTUBE_PROXY`, using an
-`http`, `https`, `socks4`, `socks5`, or `socks5h` URL. After changing the MCP
-environment, restart the server and call `create_brain` again with the same channel
-URL to resume.
+Channel Brains uses paced requests and bounded retries. If YouTube keeps limiting
+requests, the brain pauses with its progress saved. Wait a while, then call
+`create_brain` again with the same channel URL to resume.
 
 ## Manual MCP client configuration
 
