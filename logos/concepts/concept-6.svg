@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="512" height="512" viewBox="0 0 512 512">
-  <title>Channel Brains — Folded Signal</title>
-  <desc>A copper play silhouette built from a continuous cortex ribbon with two broad, hooked brain folds.</desc>
-  <g fill="none" stroke="#C47C48" stroke-width="34" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M204 197 C204 218 184 232 156 232 C126 232 106 211 106 183 V139 C106 112 135 96 160 110 L397 247 Q413 256 397 265 L160 402 C135 417 106 401 106 373 V326 C106 300 125 282 150 282 H157 C182 282 199 300 199 323 C199 342 178 347 175 330"/>
-    <path d="M303 193 V229 C303 248 289 262 270 262 H255"/>
-  </g>
-</svg>
