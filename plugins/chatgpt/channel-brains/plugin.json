@@ -1,0 +1,95 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "channel-brains",
+  "version": "1.0.0",
+  "description": "Index any public YouTube channel and search its captions with timestamped citations.",
+  "author": {
+    "name": "The Aldus",
+    "email": "drewpullen2003@gmail.com",
+    "url": "https://channel-brains-production.up.railway.app/"
+  },
+  "homepage": "https://channel-brains-production.up.railway.app/",
+  "repository": "https://github.com/Pu11en/channel-brains",
+  "license": "MIT",
+  "keywords": [
+    "youtube",
+    "captions",
+    "transcripts",
+    "search",
+    "research",
+    "citations"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Channel Brains",
+        "category": "Education & Research",
+        "shortDescription": "Search YouTube channels fast",
+        "longDescription": "Channel Brains turns any public YouTube channel into a searchable knowledge base. Point it at a channel and it indexes the channel's captions — up to 50 of its most-viewed videos — into a private, per-account store. Then ask questions and get answers grounded in what was actually said, with clickable timestamped citations back to the exact moment in the video. Each account's brains are private and isolated; up to 3 channels per account. Indexing is resumable: if YouTube rate-limits a run, completed progress is kept and the same channel can be resumed later.",
+        "websiteURL": "https://channel-brains-production.up.railway.app/",
+        "supportURL": "https://github.com/Pu11en/channel-brains/issues",
+        "privacyPolicyURL": "https://channel-brains-production.up.railway.app/privacy",
+        "termsOfServiceURL": "https://channel-brains-production.up.railway.app/terms",
+        "defaultPrompt": [
+          "Index this channel and search it when it's ready: https://www.youtube.com/channel/UCNZEktrsM5oJZ-MK4jKPMOQ"
+        ],
+        "logo": "./assets/channel-brains-logo-512.png"
+      },
+      "publication": {
+        "release_notes": "Initial release. Index any public YouTube channel — up to 50 videos — into a private, searchable brain. Ask questions and get answers with timestamped citations that link to the exact moment in the video. Per-account privacy, resumable indexing, up to 3 channels."
+      },
+      "review": {
+        "commerce": false,
+        "demo_recording_url": "https://channel-brains-production.up.railway.app/demo.mp4",
+        "test_cases": {
+          "positive": [
+            {
+              "description": "Connect the plugin with the demo account and confirm its tools are available.",
+              "prompt": "Show me my Channel Brains profile and list what you can do with it.",
+              "tools_triggered": "get_profile",
+              "expected_behavior": "OAuth sign-in completes with the demo credentials; the plugin exposes create_brain, get_brain_status, list_brain_videos, search_brain, get_video_transcript, delete_brain, and get_profile; the profile tool returns the account's opaque id."
+            },
+            {
+              "description": "Index a YouTube channel end to end.",
+              "prompt": "Index this channel and tell me when it's ready: https://www.youtube.com/channel/UCNZEktrsM5oJZ-MK4jKPMOQ",
+              "tools_triggered": "create_brain,get_brain_status",
+              "expected_behavior": "create_brain returns monitoring_required=true with a brain id; the model keeps one get_brain_status wait_until_terminal=true call active until the brain reaches ready; final counts report 50 indexed videos with caption chunks and no failures."
+            },
+            {
+              "description": "Search returns timestamped citations grounded in stored captions.",
+              "prompt": "Search the channel I just indexed for 'AI' and give me timestamps.",
+              "tools_triggered": "search_brain",
+              "expected_behavior": "Ranked results each cite the video title, a timestamp, and a youtu.be/<id>?t=<seconds> URL grounded in the stored captions; no invented answers or un-cited claims."
+            },
+            {
+              "description": "Per-account data isolation.",
+              "prompt": "I'm signed in as the demo account. Create a brain, then confirm it stays private to this account.",
+              "tools_triggered": "create_brain,get_brain_status",
+              "expected_behavior": "The demo account's brain is created under its own storage namespace; a second, different account (or the reviewer's own account) cannot see or query the demo account's brains — cross-account status lookups return zero results."
+            },
+            {
+              "description": "Delete requires explicit confirmation and removes the data.",
+              "prompt": "Delete my brain. I confirm I want it permanently removed.",
+              "tools_triggered": "delete_brain,get_brain_status",
+              "expected_behavior": "delete_brain without confirm=true refuses and explains that confirmation is required; with confirm=true it permanently removes the brain's videos and chunks; subsequent status lookups find nothing."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Invalid channel URL is rejected without any network work.",
+              "prompt": "Index this channel: https://example.com/notyoutube"
+            },
+            {
+              "description": "Nonexistent YouTube channel reports the exact cause instead of a generic failure.",
+              "prompt": "Index this channel: https://www.youtube.com/@definitelynotrealchannelxx9q7"
+            },
+            {
+              "description": "Unauthenticated access to the MCP endpoint is refused with an OAuth challenge.",
+              "prompt": "Send an MCP request to the plugin's public endpoint without signing in."
+            }
+          ]
+        }
+      }
+    }
+  }
+}

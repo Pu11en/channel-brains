@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "channel-brains": {
+      "type": "streamable-http",
+      "url": "https://channel-brains-production.up.railway.app/mcp"
+    }
+  }
+}

@@ -1,0 +1,17 @@
+.git
+.venv
+.planning
+.pytest_cache
+.ruff_cache
+.agents
+.claude-plugin
+.github
+dist
+brains
+integrations
+plugins
+scripts
+tests
+AGENT_INSTALL.md
+AGENTS.md
+CLAUDE.md

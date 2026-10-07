@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -13,8 +14,9 @@ import sys
 import threading
 import time
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import suppress
+from pathlib import Path
 from typing import Annotated, Any
 
 import anyio
@@ -23,9 +25,40 @@ from filelock import FileLock, Timeout
 from mcp.server import MCPServer
 from mcp.server.mcpserver import Context
 from mcp.shared.message import SessionMessage
-from pydantic import Field
+from mcp.types import ToolAnnotations
+from pydantic import BaseModel, Field
+from starlette.applications import Starlette
+from starlette.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    PlainTextResponse,
+    Response,
+)
+from starlette.routing import Mount, Route
+from starlette.types import ASGIApp
 
-from channel_brains_mcp.config import MAX_SEARCH_RESULTS, VERSION, get_ingest_lock_path, get_paths
+from channel_brains_mcp.auth import (
+    OPENAI_APPS_CHALLENGE_PATH,
+    PROTECTED_RESOURCE_PATH,
+    BearerAuthMiddleware,
+    TokenValidator,
+    current_sub,
+    load_auth_config,
+    protected_resource_metadata,
+)
+from channel_brains_mcp.config import (
+    MAX_SEARCH_RESULTS,
+    VERSION,
+    get_demo_video_path,
+    get_http_host,
+    get_http_path,
+    get_http_port,
+    get_ingest_lock_path,
+    get_openai_challenge_token,
+    get_paths,
+    get_user_data_dir,
+)
 from channel_brains_mcp.db import Repository, read_transaction
 from channel_brains_mcp.jobs import JobManager
 from channel_brains_mcp.models import (
@@ -40,6 +73,7 @@ from channel_brains_mcp.models import (
     VideoListResult,
     VideoSummary,
 )
+from channel_brains_mcp.policies import LANDING_HTML, PRIVACY_HTML, TERMS_HTML
 from channel_brains_mcp.youtube import YoutubeClient, is_valid_channel_url, normalize_channel_url
 
 logger = logging.getLogger(__name__)
@@ -58,6 +92,8 @@ DEFAULT_MONITOR_TIMEOUT_SECONDS = 7200
 MAX_MONITOR_TIMEOUT_SECONDS = 21600
 DEFAULT_MONITOR_POLL_SECONDS = 5
 MAX_MONITOR_POLL_SECONDS = 60
+
+MAX_BRAINS_PER_USER = 3
 
 INSTRUCTIONS = """Use Channel Brains only when the user explicitly asks to create, index, or query a
 YouTube channel brain. Never start ingestion merely because a URL appears. create_brain returns
@@ -192,10 +228,13 @@ def _create_brain(repo: Repository, jobs: JobManager, channel_url: str, max_vide
                 message="This brain is already ready. No network work was queued.",
             )
         was_queued = jobs.enqueue(brain_id)
-        monitoring_required = status in {"queued", "discovering", "ingesting"}
+        # A re-queued failed/paused brain is being retried right now; reporting the
+        # stale stored status would let hosts stop monitoring a live resume job.
+        effective_status = "queued" if (was_queued and status in {"failed", "paused"}) else status
+        monitoring_required = effective_status in {"queued", "discovering", "ingesting"}
         return CreateBrainResult(
             brain_id=brain_id,
-            status=status,
+            status=effective_status,
             normalized_url=normalized_url,
             max_videos=int(existing["max_videos"]),
             language=str(existing["language"]),
@@ -436,8 +475,76 @@ def _timestamp(seconds: int) -> str:
     return f"{seconds // 60}:{seconds % 60:02d}"
 
 
-def build_server(repo: Repository, jobs: JobManager) -> MCPServer:
-    """Build an injected, side-effect-free MCPServer with exactly six tools."""
+class UserStore:
+    """Resolve per-user repositories and job managers from the caller's identity.
+
+    Authenticated requests (contextvar sub set by the auth middleware) get an
+    isolated data directory under <data_dir>/users/<hash>; unauthenticated
+    callers — the operator's secret path and stdio — share the base store.
+    Worker threads exit when their queue drains, so cached JobManagers do not
+    accumulate live threads.
+    """
+
+    def __init__(self, repo: Repository, jobs: JobManager) -> None:
+        self._repo = repo
+        self._jobs = jobs
+        self._cache: dict[str, tuple[Repository, JobManager]] = {}
+        self._cache_lock = threading.Lock()
+
+    def resolve(self) -> tuple[Repository, JobManager]:
+        sub = current_sub.get()
+        if not sub:
+            return self._repo, self._jobs
+        with self._cache_lock:
+            entry = self._cache.get(sub)
+            if entry is None:
+                user_dir = get_user_data_dir(sub)
+                db_path = user_dir / "channel_brains.sqlite3"
+                db_path.parent.mkdir(parents=True, exist_ok=True)
+                repo = Repository(db_path)
+                repo.initialize_database()
+                jobs = JobManager(
+                    repo=repo,
+                    youtube=YoutubeClient(),
+                    lock_path=str(user_dir / "ingest.lock"),
+                )
+                entry = (repo, jobs)
+                self._cache[sub] = entry
+            return entry
+
+
+class ProfileResult(BaseModel):
+    id: str
+
+
+def _quota_block(repo: Repository, channel_url: str, max_videos: int, language: str) -> CreateBrainResult | None:
+    """Return an error result when an authenticated user already holds the brain cap."""
+    rows = repo.get_brain_status()
+    if not isinstance(rows, list) or len(rows) < MAX_BRAINS_PER_USER:
+        return None
+    normalized = normalize_channel_url(channel_url) if is_valid_channel_url(channel_url) else channel_url
+    if any(str(row.get("normalized_url")) == normalized for row in rows):
+        return None
+    return CreateBrainResult(
+        brain_id="",
+        status="error",
+        normalized_url=normalized,
+        max_videos=max_videos,
+        language=language,
+        queued=False,
+        message=f"Account brain limit reached ({MAX_BRAINS_PER_USER}). Delete an existing brain before adding a new channel.",
+    )
+
+
+def build_server(
+    repo: Repository,
+    jobs: JobManager,
+    *,
+    store: UserStore | None = None,
+    auth_enabled: bool = False,
+) -> MCPServer:
+    """Build an injected, side-effect-free MCPServer with the six core tools."""
+    resolved_store = store or UserStore(repo, jobs)
     server = MCPServer(name="Channel Brains", instructions=INSTRUCTIONS, version=VERSION)
 
     @server.tool(
@@ -447,9 +554,18 @@ def build_server(repo: Repository, jobs: JobManager) -> MCPServer:
             "monitoring_required=true, immediately call get_brain_status with the returned "
             "brain_id and wait_until_terminal=true before replying to the user."
         ),
+        annotations=ToolAnnotations(
+            title="Create channel brain", read_only_hint=False, destructive_hint=False,
+            idempotent_hint=True, open_world_hint=True,
+        ),
     )
     async def create_brain(channel_url: str, max_videos: int = 50, language: str = "en") -> CreateBrainResult:
-        return _create_brain(repo, jobs, channel_url, max_videos, language)
+        user_repo, user_jobs = resolved_store.resolve()
+        if current_sub.get():
+            blocked = _quota_block(user_repo, channel_url, max_videos, language)
+            if blocked is not None:
+                return blocked
+        return _create_brain(user_repo, user_jobs, channel_url, max_videos, language)
 
     @server.tool(
         name="get_brain_status",
@@ -457,6 +573,10 @@ def build_server(repo: Repository, jobs: JobManager) -> MCPServer:
             "Read local progress. After create_brain requires monitoring, set "
             "wait_until_terminal=true so Channel Brains monitors its own SQLite state and "
             "returns at ready, paused, failed, or timeout. Never contacts YouTube."
+        ),
+        annotations=ToolAnnotations(
+            title="Get brain status", read_only_hint=True, destructive_hint=False,
+            idempotent_hint=True, open_world_hint=False,
         ),
     )
     async def get_brain_status(
@@ -470,8 +590,9 @@ def build_server(repo: Repository, jobs: JobManager) -> MCPServer:
             int, Field(ge=1, le=MAX_MONITOR_POLL_SECONDS)
         ] = DEFAULT_MONITOR_POLL_SECONDS,
     ) -> BrainStatusResult:
+        user_repo, _ = resolved_store.resolve()
         if not wait_until_terminal:
-            return _get_status(repo, brain_id)
+            return _get_status(user_repo, brain_id)
         if brain_id is None:
             raise ValueError("brain_id is required when wait_until_terminal=true")
 
@@ -488,28 +609,74 @@ def build_server(repo: Repository, jobs: JobManager) -> MCPServer:
                 await ctx.report_progress(completed, total, message)
 
         return await _wait_for_terminal_status(
-            repo,
+            user_repo,
             brain_id,
             timeout_seconds,
             poll_interval_seconds,
             report_progress=report,
         )
 
-    @server.tool(name="list_brain_videos", description="Page through selected videos and outcomes. Never contacts YouTube.")
+    @server.tool(
+        name="list_brain_videos",
+        description="Page through selected videos and outcomes. Never contacts YouTube.",
+        annotations=ToolAnnotations(
+            title="List brain videos", read_only_hint=True, destructive_hint=False,
+            idempotent_hint=True, open_world_hint=False,
+        ),
+    )
     async def list_brain_videos(brain_id: str, offset: int = 0, limit: int = 20) -> VideoListResult:
-        return _list_videos(repo, brain_id, offset, limit)
+        user_repo, _ = resolved_store.resolve()
+        return _list_videos(user_repo, brain_id, offset, limit)
 
-    @server.tool(name="search_brain", description="Return ranked, timestamped caption evidence. Never generates an answer or contacts YouTube.")
+    @server.tool(
+        name="search_brain",
+        description="Return ranked, timestamped caption evidence. Never generates an answer or contacts YouTube.",
+        annotations=ToolAnnotations(
+            title="Search brain", read_only_hint=True, destructive_hint=False,
+            idempotent_hint=True, open_world_hint=False,
+        ),
+    )
     async def search_brain(query: str, brain_id: str | None = None, limit: int = 8) -> SearchResult:
-        return _search(repo, query, brain_id, limit)
+        user_repo, _ = resolved_store.resolve()
+        return _search(user_repo, query, brain_id, limit)
 
-    @server.tool(name="get_video_transcript", description="Page through indexed caption chunks for one video. Never contacts YouTube.")
+    @server.tool(
+        name="get_video_transcript",
+        description="Page through indexed caption chunks for one video. Never contacts YouTube.",
+        annotations=ToolAnnotations(
+            title="Get video transcript", read_only_hint=True, destructive_hint=False,
+            idempotent_hint=True, open_world_hint=False,
+        ),
+    )
     async def get_video_transcript(brain_id: str, video_id: str, offset: int = 0, limit: int = 50) -> TranscriptResult:
-        return _transcript(repo, brain_id, video_id, offset, limit)
+        user_repo, _ = resolved_store.resolve()
+        return _transcript(user_repo, brain_id, video_id, offset, limit)
 
-    @server.tool(name="delete_brain", description="Permanently delete one brain only with confirm=true.")
+    @server.tool(
+        name="delete_brain",
+        description="Permanently delete one brain only with confirm=true.",
+        annotations=ToolAnnotations(
+            title="Delete brain", read_only_hint=False, destructive_hint=True,
+            idempotent_hint=True, open_world_hint=False,
+        ),
+    )
     async def delete_brain(brain_id: str, confirm: bool = False) -> DeleteBrainResult:
-        return _delete(repo, jobs, brain_id, confirm)
+        user_repo, user_jobs = resolved_store.resolve()
+        return _delete(user_repo, user_jobs, brain_id, confirm)
+
+    if auth_enabled:
+
+        @server.tool(
+            name="get_profile",
+            description="Return the signed-in account's stable, opaque profile identifier.",
+            meta={"openai/profile": True},
+            annotations=ToolAnnotations(
+                title="Get profile", read_only_hint=True, destructive_hint=False,
+                idempotent_hint=True, open_world_hint=False,
+            ),
+        )
+        async def get_profile() -> ProfileResult:
+            return ProfileResult(id=current_sub.get() or "anonymous")
 
     return server
 
@@ -605,13 +772,104 @@ async def _run_stdio(server: MCPServer) -> None:
             await read_stream.aclose()
 
 
+def build_http_app(server: MCPServer, host: str = "127.0.0.1") -> ASGIApp:
+    """Build the streamable-HTTP ASGI app with dual MCP paths.
+
+    The same stateless streamable app is mounted twice: at the operator's
+    unguessable CHANNEL_BRAINS_HTTP_PATH (no auth, personal use) and at the
+    public /mcp path. When CHANNEL_BRAINS_AUTH_ISSUER is configured, public
+    paths require a bearer token validated against the issuer's JWKS, and
+    /.well-known/oauth-protected-resource tells clients where to log in.
+
+    The SDK auto-enables loopback-only DNS-rebinding protection when host is a
+    loopback address; public deployments pass their bind host.
+    """
+
+    async def healthz(request: Any) -> JSONResponse:
+        return JSONResponse({"status": "ok", "version": VERSION, "tools": len(TOOL_NAMES)})
+
+    async def privacy(request: Any) -> HTMLResponse:
+        return HTMLResponse(PRIVACY_HTML)
+
+    async def terms(request: Any) -> HTMLResponse:
+        return HTMLResponse(TERMS_HTML)
+
+    async def landing(request: Any) -> HTMLResponse:
+        return HTMLResponse(LANDING_HTML)
+
+    async def openai_apps_challenge(request: Any) -> Response:
+        # OpenAI's directory verifies domain ownership by fetching this path and
+        # expecting the exact challenge token as plain text, with no JSON wrapper.
+        token = get_openai_challenge_token()
+        if not token:
+            return Response(status_code=404)
+        return PlainTextResponse(token)
+
+    async def demo_video(request: Any) -> Response:
+        # Packaged submission walkthrough (CHANNEL_BRAINS_DEMO_VIDEO); reviewers
+        # stream it directly from the plugin's own origin.
+        configured = get_demo_video_path()
+        video = Path(configured) if configured else None
+        if video is None or not video.is_file():
+            return Response(status_code=404)
+        return FileResponse(video, media_type="video/mp4", filename="channel-brains-demo.mp4")
+
+    streamable = server._lowlevel_server.streamable_http_app(
+        streamable_http_path="/mcp",
+        stateless_http=True,
+        host=host,
+        custom_starlette_routes=[Route("/healthz", healthz, methods=["GET"])],
+    )
+
+    @contextlib.asynccontextmanager
+    async def lifespan(app: object) -> AsyncIterator[None]:
+        # Mounted sub-applications do not receive the server lifespan; run the
+        # streamable app's own lifespan so its session manager task group starts.
+        async with streamable.router.lifespan_context(streamable):
+            yield
+
+    secret_path = get_http_path()
+    secret_prefix = secret_path.rsplit("/", 1)[0]
+    routes: list[Mount | Route] = [Route("/", landing), Route("/privacy", privacy), Route("/terms", terms)]
+    routes.append(Route(OPENAI_APPS_CHALLENGE_PATH, openai_apps_challenge, methods=["GET"]))
+    routes.append(Route("/demo.mp4", demo_video, methods=["GET"]))
+    if secret_prefix:
+        routes.append(Mount(secret_prefix, app=streamable))
+
+    auth_config = load_auth_config()
+    if auth_config is None:
+        routes.append(Mount("/", app=streamable))
+        return Starlette(routes=routes, lifespan=lifespan)
+
+    validator = TokenValidator(auth_config)
+
+    async def resource_metadata(request: Any) -> JSONResponse:
+        return JSONResponse(protected_resource_metadata(auth_config))
+
+    routes.append(Route(PROTECTED_RESOURCE_PATH, resource_metadata, methods=["GET"]))
+    routes.append(Mount("/", app=streamable))
+    return BearerAuthMiddleware(
+        Starlette(routes=routes, lifespan=lifespan),
+        validator,
+        exempt_prefixes=(secret_prefix,) if secret_prefix else (),
+    )
+
+
 def main() -> None:
-    """Start a production stdio MCP server. Initialization makes no network requests."""
+    """Start a production MCP server over stdio (default) or streamable HTTP."""
     parser = argparse.ArgumentParser(
         prog="channel-brains-mcp",
-        description="Local stdio MCP server for searchable YouTube channel captions.",
+        description="MCP server for searchable YouTube channel captions.",
     )
     parser.add_argument("--check", action="store_true", help="run local preflight checks and exit")
+    parser.add_argument(
+        "--transport",
+        choices=("stdio", "http"),
+        default=os.environ.get("CHANNEL_BRAINS_TRANSPORT", "stdio"),
+        help="serve MCP over stdio or streamable HTTP (default: stdio)",
+    )
+    parser.add_argument("--host", default=None, help="HTTP listen host (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=None, help="HTTP listen port (default: PORT env or 8000)")
     parser.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
     args = parser.parse_args()
 
@@ -620,22 +878,36 @@ def main() -> None:
     repo = Repository(paths.database_path)
     repo.initialize_database()
     jobs = JobManager(repo=repo, youtube=YoutubeClient(), lock_path=str(paths.ingest_lock_path))
-    server = build_server(repo, jobs)
+    server = build_server(repo, jobs, auth_enabled=load_auth_config() is not None)
     if args.check:
         registered = anyio.run(server.list_tools)
         actual_names = tuple(tool.name for tool in registered)
         if actual_names != TOOL_NAMES:
             raise RuntimeError(f"Tool registration mismatch: {actual_names!r}")
-        print(
-            json.dumps(
-                {
-                    "status": "ok",
-                    "version": VERSION,
-                    "transport": "stdio",
-                    "tool_count": len(actual_names),
-                    "database": str(paths.database_path),
-                }
-            )
+        payload: dict[str, object] = {
+            "status": "ok",
+            "version": VERSION,
+            "transport": args.transport,
+            "tool_count": len(actual_names),
+            "database": str(paths.database_path),
+        }
+        if args.transport == "http":
+            host = args.host or get_http_host()
+            port = args.port or get_http_port()
+            payload["url"] = f"http://{host}:{port}{get_http_path()}"
+            payload["health_url"] = f"http://{host}:{port}/healthz"
+        print(json.dumps(payload))
+        return
+    if args.transport == "http":
+        import uvicorn
+
+        host = args.host or get_http_host()
+        uvicorn.run(
+            build_http_app(server, host=host),
+            host=host,
+            port=args.port or get_http_port(),
+            log_level="info",
+            access_log=False,
         )
         return
     anyio.run(_run_stdio, server)

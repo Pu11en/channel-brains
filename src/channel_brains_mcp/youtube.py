@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
+import contextlib
 import json
 import logging
 import os
@@ -15,6 +18,8 @@ from dataclasses import dataclass
 from html import unescape
 from io import StringIO
 from pathlib import Path
+
+from channel_brains_mcp.config import get_data_dir
 
 logger = logging.getLogger(__name__)
 
@@ -444,6 +449,22 @@ class YoutubeRequestError(RuntimeError):
         self.status_code = status_code
 
 
+def _request_failure_message(exc: BaseException, status_code: int | None) -> str:
+    """Turn an opaque transport failure into a cause class users can act on."""
+    text = str(exc).lower()
+    if status_code == 404:
+        return "YouTube returned 404: channel or resource not found"
+    if status_code == 403:
+        return "YouTube refused access (403): possibly a bot check or consent wall"
+    if status_code is None and (
+        "unreachable" in text or "timed out" in text or ("connection" in text and "refused" in text)
+    ):
+        return "Cannot reach YouTube: network or configured proxy is unavailable"
+    if status_code is None and "timed out" in text:
+        return "Cannot reach YouTube: request timed out"
+    return f"YouTube request failed (HTTP {status_code})" if status_code else "YouTube request failed"
+
+
 def _download_error_status(exc: BaseException) -> int | None:
     """Recover an HTTP status from yt-dlp's wrapped exception chain or message."""
     current: BaseException | None = exc
@@ -457,6 +478,45 @@ def _download_error_status(exc: BaseException) -> int | None:
         current = current.__cause__ or current.__context__
     match = re.search(r"(?:HTTP(?: Error)?|status(?: code)?)[^0-9]{0,8}([1-5][0-9]{2})", str(exc), re.I)
     return int(match.group(1)) if match else None
+
+
+def retry_sleep(n: int) -> float:
+    """Bounded exponential backoff for yt-dlp retries.
+
+    yt-dlp invokes retry_sleep_functions with the attempt as the keyword ``n``
+    (utils._utils.report_retry: sleep_func(n=count - 1)), so the parameter must
+    be named ``n``; positional calls bind to it too.
+    """
+    return min(2**n, 20)
+
+
+def _materialize_raw_cookies(raw: str) -> str:
+    """Write env-provided Netscape cookie content to the data dir and return its path.
+
+    Hosts cannot mount cookie files, so deployments pass the file content through
+    CHANNEL_BRAINS_YOUTUBE_COOKIES_RAW. A single-line value is treated as
+    base64-encoded content (the safe way to transport tabs and newlines through
+    an environment variable); multi-line values are used verbatim.
+    """
+    content = raw
+    if "\n" not in raw and "\t" not in raw:
+        try:
+            decoded = base64.b64decode(raw, validate=True).decode("utf-8")
+        except (binascii.Error, UnicodeDecodeError) as exc:
+            raise ValueError("CHANNEL_BRAINS_YOUTUBE_COOKIES_RAW is not valid base64") from exc
+        if "\t" not in decoded:
+            raise ValueError("CHANNEL_BRAINS_YOUTUBE_COOKIES_RAW did not decode to a cookie file")
+        content = decoded
+    if not content.startswith("# Netscape") and "\t" not in content:
+        raise ValueError("CHANNEL_BRAINS_YOUTUBE_COOKIES_RAW does not look like a cookie file")
+
+    data_dir = get_data_dir()
+    data_dir.mkdir(parents=True, exist_ok=True)
+    path = data_dir / "youtube-cookies.txt"
+    path.write_text(content if content.endswith("\n") else content + "\n", encoding="utf-8")
+    with contextlib.suppress(OSError):  # Windows filesystems may reject chmod
+        path.chmod(0o600)
+    return str(path)
 
 
 class YoutubeClient:
@@ -478,8 +538,8 @@ class YoutubeClient:
             # Pace a complete channel ingest instead of presenting YouTube with a burst.
             "sleep_interval_requests": 0.75,
             "retry_sleep_functions": {
-                "http": lambda attempt: min(2**attempt, 20),
-                "extractor": lambda attempt: min(2**attempt, 20),
+                "http": retry_sleep,
+                "extractor": retry_sleep,
             },
         }
         self._apply_explicit_network_options()
@@ -488,10 +548,12 @@ class YoutubeClient:
     def _apply_explicit_network_options(self) -> None:
         browser = os.environ.get("CHANNEL_BRAINS_YOUTUBE_COOKIES_FROM_BROWSER", "").strip()
         cookie_file = os.environ.get("CHANNEL_BRAINS_YOUTUBE_COOKIES_FILE", "").strip()
-        if browser and cookie_file:
+        cookie_raw = os.environ.get("CHANNEL_BRAINS_YOUTUBE_COOKIES_RAW", "").strip()
+        cookie_sources = sum(1 for value in (browser, cookie_file, cookie_raw) if value)
+        if cookie_sources > 1:
             raise ValueError(
-                "Set only one of CHANNEL_BRAINS_YOUTUBE_COOKIES_FROM_BROWSER or "
-                "CHANNEL_BRAINS_YOUTUBE_COOKIES_FILE"
+                "Set only one of CHANNEL_BRAINS_YOUTUBE_COOKIES_FROM_BROWSER, "
+                "CHANNEL_BRAINS_YOUTUBE_COOKIES_FILE, or CHANNEL_BRAINS_YOUTUBE_COOKIES_RAW"
             )
         if browser:
             if not re.fullmatch(r"[a-zA-Z0-9_-]+", browser):
@@ -502,6 +564,8 @@ class YoutubeClient:
             if not path.is_file():
                 raise ValueError("CHANNEL_BRAINS_YOUTUBE_COOKIES_FILE does not exist")
             self._ydl_opts["cookiefile"] = str(path)
+        if cookie_raw:
+            self._ydl_opts["cookiefile"] = _materialize_raw_cookies(cookie_raw)
 
         proxy = os.environ.get("CHANNEL_BRAINS_YOUTUBE_PROXY", "").strip()
         if proxy:
@@ -509,6 +573,13 @@ class YoutubeClient:
             if parsed.scheme not in {"http", "https", "socks4", "socks5", "socks5h"}:
                 raise ValueError("CHANNEL_BRAINS_YOUTUBE_PROXY uses an unsupported URL scheme")
             self._ydl_opts["proxy"] = proxy
+
+        player_clients = os.environ.get("CHANNEL_BRAINS_YOUTUBE_PLAYER_CLIENT", "").strip()
+        if player_clients:
+            clients = [client.strip() for client in player_clients.split(",") if client.strip()]
+            if not all(re.fullmatch(r"[a-zA-Z0-9_]+", client) for client in clients):
+                raise ValueError("CHANNEL_BRAINS_YOUTUBE_PLAYER_CLIENT has an invalid client name")
+            self._ydl_opts["extractor_args"] = {"youtube": {"player_client": clients}}
 
     def _extract_info(self, url: str, options: dict[str, object]) -> dict[str, object] | None:
         """Run yt-dlp with two app-level 429 retries after its internal retries."""
@@ -524,7 +595,7 @@ class YoutubeClient:
                 status_code = _download_error_status(exc)
                 if status_code != 429:
                     raise YoutubeRequestError(
-                        "YouTube request failed", status_code=status_code
+                        _request_failure_message(exc, status_code), status_code=status_code
                     ) from exc
                 if attempt == len(delays):
                     raise YoutubeRequestError(

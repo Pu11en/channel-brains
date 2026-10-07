@@ -71,6 +71,74 @@ def test_youtube_client_rejects_conflicting_cookie_sources(monkeypatch, tmp_path
         YoutubeClient(sleep=lambda _: None)
 
 
+def test_retry_sleep_functions_accept_yt_dlp_keyword_call():
+    """yt-dlp invokes retry_sleep_functions as sleep_func(n=count - 1)."""
+    client = YoutubeClient(sleep=lambda _: None)
+
+    functions = client._ydl_opts["retry_sleep_functions"]
+
+    assert functions["http"](n=0) == 1
+    assert functions["extractor"](n=2) == 4
+    assert functions["extractor"](n=9) == 20
+    assert functions["http"](3) == 8
+
+
+def test_youtube_client_applies_player_client_override(monkeypatch):
+    monkeypatch.setenv("CHANNEL_BRAINS_YOUTUBE_PLAYER_CLIENT", "tv, web_safari")
+
+    client = YoutubeClient(sleep=lambda _: None)
+
+    assert client._ydl_opts["extractor_args"] == {
+        "youtube": {"player_client": ["tv", "web_safari"]}
+    }
+
+
+def test_youtube_client_rejects_malformed_player_client(monkeypatch):
+    monkeypatch.setenv("CHANNEL_BRAINS_YOUTUBE_PLAYER_CLIENT", "tv; rm -rf")
+
+    with pytest.raises(ValueError, match="invalid client name"):
+        YoutubeClient(sleep=lambda _: None)
+
+
+COOKIE_FILE = (
+    "# Netscape HTTP Cookie File\n"
+    ".youtube.com\tTRUE\t/\tTRUE\t0\tYSC\texample\n"
+)
+
+
+def test_youtube_client_materializes_raw_cookie_content(monkeypatch, tmp_path):
+    monkeypatch.setenv("CHANNEL_BRAINS_HOME", str(tmp_path))
+    monkeypatch.setenv("CHANNEL_BRAINS_YOUTUBE_COOKIES_RAW", COOKIE_FILE)
+
+    client = YoutubeClient(sleep=lambda _: None)
+
+    cookie_path = tmp_path / "youtube-cookies.txt"
+    assert client._ydl_opts["cookiefile"] == str(cookie_path)
+    assert cookie_path.read_text(encoding="utf-8") == COOKIE_FILE
+
+
+def test_youtube_client_decodes_base64_raw_cookies(monkeypatch, tmp_path):
+    import base64
+
+    monkeypatch.setenv("CHANNEL_BRAINS_HOME", str(tmp_path))
+    encoded = base64.b64encode(COOKIE_FILE.encode("utf-8")).decode("ascii")
+    monkeypatch.setenv("CHANNEL_BRAINS_YOUTUBE_COOKIES_RAW", encoded)
+
+    YoutubeClient(sleep=lambda _: None)
+
+    assert (tmp_path / "youtube-cookies.txt").read_text(encoding="utf-8") == COOKIE_FILE
+
+
+def test_youtube_client_rejects_conflicting_raw_and_file_cookies(monkeypatch, tmp_path):
+    cookie_file = tmp_path / "cookies.txt"
+    cookie_file.write_text("# Netscape HTTP Cookie File\n", encoding="utf-8")
+    monkeypatch.setenv("CHANNEL_BRAINS_YOUTUBE_COOKIES_FILE", str(cookie_file))
+    monkeypatch.setenv("CHANNEL_BRAINS_YOUTUBE_COOKIES_RAW", COOKIE_FILE)
+
+    with pytest.raises(ValueError, match="Set only one"):
+        YoutubeClient(sleep=lambda _: None)
+
+
 class TestURLNormalization:
     def test_accepts_handle_url(self):
         url = normalize_channel_url("https://www.youtube.com/@testchannel")
@@ -389,3 +457,18 @@ class TestCaptionSelection:
         selection = select_caption_track(info, language="en")
         assert selection is not None
         assert selection.payload == "text"
+
+
+def test_request_failure_message_classifies_causes():
+    from channel_brains_mcp.youtube import _request_failure_message
+
+    class _Exc(Exception):
+        pass
+
+    assert "not found" in _request_failure_message(_Exc("HTTP Error 404"), 404)
+    assert "bot check" in _request_failure_message(_Exc("HTTP Error 403"), 403)
+    assert "proxy is unavailable" in _request_failure_message(
+        _Exc("SocksHTTPSConnection: Network is unreachable"), None
+    )
+    assert "Cannot reach YouTube" in _request_failure_message(_Exc("connection timed out"), None)
+    assert "HTTP 500" in _request_failure_message(_Exc("boom"), 500)

@@ -9,8 +9,14 @@ __pycache__/
 .coverage
 htmlcov/
 .env
+.secrets/
+secrets/
 /.hermes/
 /dist/
 /.zcode/
 /.claude/
 /.codex/
+/.planning/
+/brains/
+/media/demo-walkthrough.mp4
+/media/demo-voiceover.mp3
