@@ -467,7 +467,7 @@ def test_request_failure_message_classifies_causes():
 
     assert "not found" in _request_failure_message(_Exc("HTTP Error 404"), 404)
     assert "bot check" in _request_failure_message(_Exc("HTTP Error 403"), 403)
-    assert "proxy is unavailable" in _request_failure_message(
+    assert "Cannot reach YouTube right now" in _request_failure_message(
         _Exc("SocksHTTPSConnection: Network is unreachable"), None
     )
     assert "Cannot reach YouTube" in _request_failure_message(_Exc("connection timed out"), None)

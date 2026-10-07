@@ -255,7 +255,10 @@ def test_quota_blocks_fourth_brain_and_profile_reports_sub(tmp_path: Path, monke
     async def scenario() -> None:
         token = current_sub.set("quota-user")
         profile = await server.call_tool("get_profile", {})
-        assert profile.structured_content["id"] == "quota-user"
+        profile_id = profile.structured_content["id"]
+        assert profile_id != "quota-user" and len(profile_id) == 32, "profile id must be opaque"
+        again = await server.call_tool("get_profile", {})
+        assert again.structured_content["id"] == profile_id, "profile id must be stable"
 
         for handle in ("@one", "@two", "@three"):
             result = await server.call_tool(
@@ -301,3 +304,97 @@ def test_retry_of_failed_brain_reports_queued_and_monitoring(
         assert payload["monitoring_required"] is True
 
     anyio.run(scenario)
+
+
+def _hosted_server(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, **store_kwargs):  # type: ignore[no-untyped-def]
+    from channel_brains_mcp.db import Repository, initialize_database
+    from channel_brains_mcp.jobs import JobManager
+    from channel_brains_mcp.server import UserStore, build_server
+
+    monkeypatch.setenv("CHANNEL_BRAINS_HOME", str(tmp_path))
+    base_db = tmp_path / "channel_brains.sqlite3"
+    initialize_database(base_db)
+    repo = Repository(base_db)
+    jobs = JobManager(repo=repo, youtube=_FailingYoutube(), lock_path=str(tmp_path / "ingest.lock"), auto_start=False)
+    store = UserStore(repo, jobs, **store_kwargs)
+    return build_server(repo, jobs, store=store, auth_enabled=True), store
+
+
+def test_hosted_tools_drop_transcript_and_avoid_reply_blocking_language(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import anyio
+
+    from channel_brains_mcp.auth import current_sub
+    from channel_brains_mcp.server import HOSTED_TOOL_NAMES
+
+    server, _ = _hosted_server(tmp_path, monkeypatch)
+
+    async def scenario() -> None:
+        tools = await server.list_tools()
+        assert tuple(t.name for t in tools) == HOSTED_TOOL_NAMES
+        by_name = {t.name: t for t in tools}
+        create = by_name["create_brain"]
+        assert "local" not in create.description.lower()
+        assert "YouTube" in create.description and "50" in create.description
+        assert create.annotations.idempotent_hint is False
+        assert create.annotations.open_world_hint is True
+        for tool in tools:
+            for name, schema in tool.input_schema.get("properties", {}).items():
+                assert schema.get("description"), f"{tool.name}.{name} needs a description"
+        status_props = by_name["get_brain_status"].input_schema["properties"]
+        assert status_props["timeout_seconds"]["default"] == 50
+
+        token = current_sub.set("hosted-user")
+        created = await server.call_tool("create_brain", {"channel_url": "https://www.youtube.com/@one"})
+        payload = created.structured_content
+        assert payload["monitoring_required"] is True
+        assert "Do not reply" not in payload["monitoring_instruction"]
+        assert "local" not in payload["message"].lower()
+        current_sub.reset(token)
+
+    anyio.run(scenario)
+
+
+def test_failed_brains_do_not_count_toward_hosted_quota(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import anyio
+
+    from channel_brains_mcp.auth import current_sub
+
+    server, store = _hosted_server(tmp_path, monkeypatch)
+
+    async def scenario() -> None:
+        token = current_sub.set("quota-failed-user")
+        for handle in ("@one", "@two", "@three"):
+            await server.call_tool("create_brain", {"channel_url": f"https://www.youtube.com/{handle}"})
+        repo, _ = store.resolve()
+        rows = repo.get_brain_status()
+        repo.set_brain(str(rows[0]["brain_id"]), status="failed", last_error="Channel discovery failed")
+        fourth = await server.call_tool("create_brain", {"channel_url": "https://www.youtube.com/@four"})
+        assert fourth.structured_content["status"] == "queued"
+        fifth = await server.call_tool("create_brain", {"channel_url": "https://www.youtube.com/@five"})
+        assert "limit reached" in fifth.structured_content["message"]
+        current_sub.reset(token)
+
+    anyio.run(scenario)
+
+
+def test_hosted_store_resumes_unfinished_brains_after_restart(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from channel_brains_mcp.auth import current_sub
+
+    _, first_store = _hosted_server(tmp_path, monkeypatch, auto_resume=True)
+    token = current_sub.set("restart-user")
+    repo, _ = first_store.resolve()
+    repo.create_brain("aabbccddeeff", "https://www.youtube.com/@one", "https://www.youtube.com/@one", None, None, "en", 5)
+    repo.set_brain("aabbccddeeff", status="ingesting")
+    repo.create_brain("bbccddeeff00", "https://www.youtube.com/@two", "https://www.youtube.com/@two", None, None, "en", 5)
+    repo.set_brain("bbccddeeff00", status="ready")
+
+    # A fresh store simulates the process restarting: the in-memory queue is empty.
+    _, restarted_store = _hosted_server(tmp_path, monkeypatch, auto_resume=True)
+    _, jobs = restarted_store.resolve()
+    current_sub.reset(token)
+    assert jobs.is_queued("aabbccddeeff")
+    assert not jobs.is_queued("bbccddeeff00")
