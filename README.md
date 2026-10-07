@@ -17,6 +17,8 @@ coding agent query it with timestamped citations back to the exact second of vid
 
 No API key. No cloud. No account. It runs entirely on your computer.
 
+Using ChatGPT instead? See [Also on ChatGPT](#also-on-chatgpt).
+
 > Paste this into your local AI coding agent (Codex, Claude Code, ZCode, or Hermes):
 >
 > > **Get this on yourself: https://github.com/Pu11en/channel-brains**
@@ -68,7 +70,7 @@ grounded, quotable evidence — not a hallucination.
    picks up where it left off.
 4. Your agent searches that database and returns matches with timestamped YouTube links.
 
-It is deliberately small and local:
+The local version is deliberately small:
 
 - No hosted service, Docker, browser dashboard, embeddings, or LLM runtime
 - No YouTube API key, database server, or cloud account
@@ -98,11 +100,23 @@ uvx --from "git+https://github.com/Pu11en/channel-brains@v0.1.4" channel-brains-
 A successful check prints one JSON object with `"status": "ok"`, `"transport":
 "stdio"`, and `"tool_count": 6`.
 
-The server communicates only through standard input and output. Do not run it as an HTTP service.
+Locally, the server communicates only through standard input and output. Do not run it as
+an HTTP service yourself. HTTP mode exists only for the hosted ChatGPT version.
 
 > **Note:** Installation requires a local AI coding agent (Codex, Claude Code, ZCode,
 > or Hermes) that can run commands on your computer. A web-only chat (ChatGPT,
-> Claude.ai) cannot install a local MCP server.
+> Claude.ai) cannot install a local MCP server. ChatGPT users can use the hosted version below.
+
+## Also on ChatGPT
+
+A hosted version of Channel Brains is available as a ChatGPT plugin. It is pending review
+in OpenAI's plugin directory.
+
+- It runs on our server, not your computer. You sign in with an account.
+- Each account keeps its own brains, up to 3. Other accounts cannot see them.
+- It has the same six tools plus `get_profile`, which returns your account ID.
+- Privacy policy: https://channel-brains-production.up.railway.app/privacy
+- Terms: https://channel-brains-production.up.railway.app/terms
 
 ## The six tools
 
@@ -248,7 +262,7 @@ The brand mark is the red video badge with a white top-view brain ("Top Brain").
 - [`channel-brains-lockup.svg`](logos/final/channel-brains-lockup.svg) / [`png/lockup-1200.png`](logos/final/png/lockup-1200.png) — badge + "Channel Brains" wordmark lockup, with a [white version](logos/final/channel-brains-lockup-white.svg) for dark backgrounds
 - [`brand-sheet.png`](logos/final/brand-sheet.png) — one-image overview
 
-Concept history from the design rounds is kept under [`logos/concepts/`](logos/concepts/).
+Concept history from the design rounds is in the git history.
 
 ## License
 

@@ -5,8 +5,7 @@ reviewer with the demo account and the plugin's public MCP URL
 (`https://channel-brains-production.up.railway.app/mcp`) without internal context.
 
 ## Demo credentials
-- Email: `drewp716@yahoo.com`
-- Password: withheld from the public repo — recorded in the submission portal's reviewer credentials.
+- Email and password: provided privately in the submission portal's reviewer credentials.
 - No MFA is enabled on this account.
 
 ## Positive test cases (5)
